@@ -324,76 +324,204 @@ Be precise, academic, and thorough in your analysis.</textarea>
         };
 
         // ============================================
-        // METRICS & PERSISTENCE
+        // FIREBASE CONFIGURATION
+        // ============================================
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-app.js";
+        import { getDatabase, ref, push, set, update, onValue, get } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-database.js";
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyAF7oeRHdlr9HjMWg0exrCA35ziSXbH06E",
+            authDomain: "aicgllm.firebaseapp.com",
+            databaseURL: "https://aicgllm-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "aicgllm",
+            storageBucket: "aicgllm.firebasestorage.app",
+            messagingSenderId: "753346448022",
+            appId: "1:753346448022:web:e98bf4234a15047107d0b7",
+            measurementId: "G-XSH19F0QVY"
+        };
+        
+        // Initialize Firebase
+        const firebaseApp = initializeApp(firebaseConfig);
+        const database = getDatabase(firebaseApp);
+        
+        // ============================================
+        // METRICS & PERSISTENCE (Firebase + localStorage fallback)
         // ============================================
         
-        // Initialize or load metrics from localStorage
-        function initMetricsStorage() {
+        let firebaseSessionRef = null;
+        
+        // Initialize metrics storage
+        async function initMetricsStorage() {
+            try {
+                // Create a new session reference in Firebase
+                const sessionsRef = ref(database, 'sessions');
+                firebaseSessionRef = push(sessionsRef);
+                
+                // Initialize session data
+                const sessionData = {
+                    sessionId: state.sessionId,
+                    timestamp: state.sessionStartTime,
+                    userAgent: navigator.userAgent.substring(0, 100),
+                    documentsProcessed: 0,
+                    totalChunks: 0,
+                    queries: {}
+                };
+                
+                await set(firebaseSessionRef, sessionData);
+                console.log('✅ Firebase connected - Session:', state.sessionId);
+                
+                // Update global stats
+                await incrementGlobalStat('totalSessions', 1);
+                
+            } catch (e) {
+                console.warn('⚠️ Firebase unavailable, using localStorage fallback:', e.message);
+                initLocalStorage();
+            }
+        }
+        
+        // Fallback to localStorage
+        function initLocalStorage() {
             const existing = localStorage.getItem(CONFIG.STORAGE_KEY);
             if (!existing) {
                 const initial = {
                     sessions: [],
-                    aggregates: {
-                        totalSessions: 0,
-                        totalQueries: 0,
-                        totalThumbsUp: 0,
-                        totalThumbsDown: 0,
-                        avgTTFT: 0,
-                        avgTPS: 0,
-                        avgTopSimilarity: 0,
-                        avgSelfEvalFaithfulness: 0,
-                        avgSelfEvalRelevance: 0,
-                        avgSelfEvalCoherence: 0
-                    }
+                    aggregates: getEmptyAggregates()
                 };
                 localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(initial));
             }
         }
         
-        // Save current session metrics
-        function saveSessionMetrics() {
+        function getEmptyAggregates() {
+            return {
+                totalSessions: 0,
+                totalQueries: 0,
+                totalThumbsUp: 0,
+                totalThumbsDown: 0,
+                avgTTFT: 0,
+                avgTPS: 0,
+                avgTopSimilarity: 0,
+                avgSelfEvalFaithfulness: 0,
+                avgSelfEvalRelevance: 0,
+                avgSelfEvalCoherence: 0
+            };
+        }
+        
+        // Increment a global statistic
+        async function incrementGlobalStat(statName, value) {
             try {
-                const data = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '{}');
-                
-                // Create session object
-                const session = {
-                    sessionId: state.sessionId,
-                    timestamp: state.sessionStartTime,
-                    userAgent: navigator.userAgent.substring(0, 100),
-                    documentsProcessed: state.documents.length,
-                    totalChunks: state.vectorStore.length,
-                    queries: state.queriesMetrics
-                };
-                
-                // Add session if it has queries
-                if (session.queries.length > 0) {
-                    // Find and update existing session or add new
-                    const existingIdx = data.sessions.findIndex(s => s.sessionId === state.sessionId);
-                    if (existingIdx >= 0) {
-                        data.sessions[existingIdx] = session;
-                    } else {
-                        data.sessions.push(session);
-                    }
-                    
-                    // Recalculate aggregates
-                    updateAggregates(data);
-                    
-                    // Keep only last 100 sessions to avoid localStorage limits
-                    if (data.sessions.length > 100) {
-                        data.sessions = data.sessions.slice(-100);
-                    }
-                    
-                    localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(data));
-                }
+                const statRef = ref(database, `aggregates/${statName}`);
+                const snapshot = await get(statRef);
+                const currentValue = snapshot.exists() ? snapshot.val() : 0;
+                await set(statRef, currentValue + value);
             } catch (e) {
-                console.error('Error saving metrics:', e);
+                console.error('Error updating global stat:', e);
             }
         }
         
-        // Update aggregate statistics
-        function updateAggregates(data) {
-            const allQueries = data.sessions.flatMap(s => s.queries);
-            const queriesWithFeedback = allQueries.filter(q => q.feedback?.userVote);
+        // Update running averages
+        async function updateRunningAverage(statName, newValue, countStatName) {
+            try {
+                const avgRef = ref(database, `aggregates/${statName}`);
+                const countRef = ref(database, `aggregates/${countStatName}`);
+                
+                const [avgSnap, countSnap] = await Promise.all([get(avgRef), get(countRef)]);
+                
+                const currentAvg = avgSnap.exists() ? avgSnap.val() : 0;
+                const count = countSnap.exists() ? countSnap.val() : 0;
+                
+                // Calculate new running average
+                const newAvg = count > 0 
+                    ? ((currentAvg * count) + newValue) / (count + 1)
+                    : newValue;
+                
+                await set(avgRef, Math.round(newAvg * 1000) / 1000);
+            } catch (e) {
+                console.error('Error updating running average:', e);
+            }
+        }
+        
+        // Save query metrics to Firebase
+        async function saveQueryMetrics(queryMetrics) {
+            try {
+                if (firebaseSessionRef) {
+                    // Save to Firebase
+                    const queryRef = ref(database, `sessions/${firebaseSessionRef.key}/queries/${queryMetrics.id}`);
+                    await set(queryRef, queryMetrics);
+                    
+                    // Update global aggregates
+                    await incrementGlobalStat('totalQueries', 1);
+                    
+                    if (queryMetrics.generation?.ttftMs) {
+                        await updateRunningAverage('avgTTFT', queryMetrics.generation.ttftMs, 'totalQueries');
+                    }
+                    if (queryMetrics.generation?.tokensPerSecond) {
+                        await updateRunningAverage('avgTPS', queryMetrics.generation.tokensPerSecond, 'totalQueries');
+                    }
+                    if (queryMetrics.retrieval?.topSimilarity) {
+                        await updateRunningAverage('avgTopSimilarity', queryMetrics.retrieval.topSimilarity, 'totalQueries');
+                    }
+                    
+                    // Update session info
+                    await update(ref(database, `sessions/${firebaseSessionRef.key}`), {
+                        documentsProcessed: state.documents.length,
+                        totalChunks: state.vectorStore.length,
+                        lastActivity: Date.now()
+                    });
+                } else {
+                    // Fallback to localStorage
+                    saveToLocalStorage(queryMetrics);
+                }
+            } catch (e) {
+                console.error('Error saving to Firebase, falling back to localStorage:', e);
+                saveToLocalStorage(queryMetrics);
+            }
+        }
+        
+        // Save session metrics (called after each query)
+        function saveSessionMetrics() {
+            // This is now handled incrementally by saveQueryMetrics
+            // Keep for compatibility with existing code
+        }
+        
+        // Fallback localStorage save
+        function saveToLocalStorage(queryMetrics) {
+            try {
+                const data = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '{"sessions":[],"aggregates":{}}');
+                
+                let session = data.sessions.find(s => s.sessionId === state.sessionId);
+                if (!session) {
+                    session = {
+                        sessionId: state.sessionId,
+                        timestamp: state.sessionStartTime,
+                        userAgent: navigator.userAgent.substring(0, 100),
+                        documentsProcessed: state.documents.length,
+                        totalChunks: state.vectorStore.length,
+                        queries: []
+                    };
+                    data.sessions.push(session);
+                }
+                
+                session.queries.push(queryMetrics);
+                session.documentsProcessed = state.documents.length;
+                session.totalChunks = state.vectorStore.length;
+                
+                // Recalculate aggregates
+                updateLocalAggregates(data);
+                
+                // Keep only last 100 sessions
+                if (data.sessions.length > 100) {
+                    data.sessions = data.sessions.slice(-100);
+                }
+                
+                localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(data));
+            } catch (e) {
+                console.error('Error saving to localStorage:', e);
+            }
+        }
+        
+        // Update local aggregates
+        function updateLocalAggregates(data) {
+            const allQueries = data.sessions.flatMap(s => s.queries || []);
             const queriesWithSelfEval = allQueries.filter(q => q.selfEval);
             
             data.aggregates = {
@@ -423,11 +551,29 @@ Be precise, academic, and thorough in your analysis.</textarea>
         }
         
         // Record user feedback for a query
-        function recordFeedback(queryId, vote) {
+        async function recordFeedback(queryId, vote) {
             const query = state.queriesMetrics.find(q => q.id === queryId);
             if (query) {
                 query.feedback = { userVote: vote, timestamp: Date.now() };
-                saveSessionMetrics();
+                
+                try {
+                    if (firebaseSessionRef) {
+                        // Update in Firebase
+                        const feedbackRef = ref(database, `sessions/${firebaseSessionRef.key}/queries/${queryId}/feedback`);
+                        await set(feedbackRef, query.feedback);
+                        
+                        // Update global feedback counts
+                        if (vote === 'up') {
+                            await incrementGlobalStat('totalThumbsUp', 1);
+                        } else {
+                            await incrementGlobalStat('totalThumbsDown', 1);
+                        }
+                    } else {
+                        saveToLocalStorage(query);
+                    }
+                } catch (e) {
+                    console.error('Error saving feedback:', e);
+                }
             }
         }
         
@@ -475,7 +621,18 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                             coherence: clamp(evalResult.coherence),
                             timestamp: Date.now()
                         };
-                        saveSessionMetrics();
+                        
+                        // Save to Firebase
+                        if (firebaseSessionRef) {
+                            const selfEvalRef = ref(database, `sessions/${firebaseSessionRef.key}/queries/${queryId}/selfEval`);
+                            await set(selfEvalRef, query.selfEval);
+                            
+                            // Update running averages
+                            await updateRunningAverage('avgSelfEvalFaithfulness', query.selfEval.faithfulness, 'totalSelfEvals');
+                            await updateRunningAverage('avgSelfEvalRelevance', query.selfEval.relevance, 'totalSelfEvals');
+                            await updateRunningAverage('avgSelfEvalCoherence', query.selfEval.coherence, 'totalSelfEvals');
+                            await incrementGlobalStat('totalSelfEvals', 1);
+                        }
                     }
                 }
             } catch (e) {
@@ -1152,7 +1309,9 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     selfEval: null
                 };
                 state.queriesMetrics.push(queryMetrics);
-                saveSessionMetrics();
+                
+                // Save to Firebase (or localStorage fallback)
+                saveQueryMetrics(queryMetrics);
                 
                 // Run self-evaluation in background (don't await)
                 runSelfEvaluation(queryId, userMessage, contextText, fullResponse);

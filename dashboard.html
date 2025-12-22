@@ -40,6 +40,10 @@
                 </div>
             </div>
             <div class="flex items-center gap-4">
+                <div id="data-source" class="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 rounded-lg text-sm text-slate-400">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Connecting...</span>
+                </div>
                 <a href="index.html" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600/30 transition-colors text-sm">
                     <i class="fas fa-arrow-left"></i>
                     <span>Back to App</span>
@@ -301,23 +305,78 @@
         </div>
     </main>
 
-    <script>
+    <script type="module">
+        // ============================================
+        // FIREBASE CONFIGURATION
+        // ============================================
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-app.js";
+        import { getDatabase, ref, onValue, get, remove } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-database.js";
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyAF7oeRHdlr9HjMWg0exrCA35ziSXbH06E",
+            authDomain: "aicgllm.firebaseapp.com",
+            databaseURL: "https://aicgllm-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "aicgllm",
+            storageBucket: "aicgllm.firebasestorage.app",
+            messagingSenderId: "753346448022",
+            appId: "1:753346448022:web:e98bf4234a15047107d0b7",
+            measurementId: "G-XSH19F0QVY"
+        };
+        
+        // Initialize Firebase
+        const firebaseApp = initializeApp(firebaseConfig);
+        const database = getDatabase(firebaseApp);
+        
         // ============================================
         // CONFIGURATION
         // ============================================
         const STORAGE_KEY = 'lit-reviewer-metrics';
         let charts = {};
+        let useFirebase = true;
 
         // ============================================
         // DATA LOADING
         // ============================================
-        function loadData() {
+        async function loadData() {
+            try {
+                if (useFirebase) {
+                    // Load from Firebase
+                    const [sessionsSnap, aggregatesSnap] = await Promise.all([
+                        get(ref(database, 'sessions')),
+                        get(ref(database, 'aggregates'))
+                    ]);
+                    
+                    const sessionsData = sessionsSnap.exists() ? sessionsSnap.val() : {};
+                    const aggregates = aggregatesSnap.exists() ? aggregatesSnap.val() : getEmptyAggregates();
+                    
+                    // Convert sessions object to array
+                    const sessions = Object.values(sessionsData).map(session => {
+                        // Convert queries object to array if needed
+                        if (session.queries && typeof session.queries === 'object' && !Array.isArray(session.queries)) {
+                            session.queries = Object.values(session.queries);
+                        }
+                        return session;
+                    });
+                    
+                    console.log('✅ Loaded from Firebase:', sessions.length, 'sessions');
+                    return { sessions, aggregates };
+                }
+            } catch (e) {
+                console.warn('⚠️ Firebase unavailable, falling back to localStorage:', e.message);
+                useFirebase = false;
+            }
+            
+            // Fallback to localStorage
+            return loadLocalData();
+        }
+        
+        function loadLocalData() {
             try {
                 const raw = localStorage.getItem(STORAGE_KEY);
                 if (!raw) return { sessions: [], aggregates: getEmptyAggregates() };
                 return JSON.parse(raw);
             } catch (e) {
-                console.error('Error loading data:', e);
+                console.error('Error loading local data:', e);
                 return { sessions: [], aggregates: getEmptyAggregates() };
             }
         }
@@ -336,22 +395,42 @@
                 avgSelfEvalCoherence: 0
             };
         }
+        
+        // Setup real-time listener for Firebase
+        function setupRealtimeListener() {
+            if (!useFirebase) return;
+            
+            // Listen to aggregates changes
+            onValue(ref(database, 'aggregates'), (snapshot) => {
+                console.log('🔄 Real-time update received');
+                updateDashboard();
+            });
+        }
 
         // ============================================
         // UI UPDATES
         // ============================================
-        function updateDashboard() {
-            const data = loadData();
-            const agg = data.aggregates;
+        async function updateDashboard() {
+            const data = await loadData();
+            const agg = data.aggregates || getEmptyAggregates();
             const allQueries = data.sessions.flatMap(s => s.queries || []);
 
+            // Show data source indicator
+            const sourceIndicator = document.getElementById('data-source');
+            if (sourceIndicator) {
+                sourceIndicator.innerHTML = useFirebase 
+                    ? '<i class="fas fa-cloud text-green-400 mr-1"></i>Firebase (Real-time)'
+                    : '<i class="fas fa-database text-yellow-400 mr-1"></i>Local Storage';
+            }
+
             // KPI Cards
-            document.getElementById('kpi-sessions').textContent = agg.totalSessions || 0;
-            document.getElementById('kpi-queries').textContent = agg.totalQueries || 0;
-            document.getElementById('kpi-ttft').innerHTML = `${agg.avgTTFT || 0}<span class="text-lg">ms</span>`;
+            document.getElementById('kpi-sessions').textContent = agg.totalSessions || data.sessions.length || 0;
+            document.getElementById('kpi-queries').textContent = agg.totalQueries || allQueries.length || 0;
+            document.getElementById('kpi-ttft').innerHTML = `${Math.round(agg.avgTTFT) || 0}<span class="text-lg">ms</span>`;
             
-            const satisfaction = agg.totalThumbsUp + agg.totalThumbsDown > 0
-                ? Math.round((agg.totalThumbsUp / (agg.totalThumbsUp + agg.totalThumbsDown)) * 100)
+            const totalVotes = (agg.totalThumbsUp || 0) + (agg.totalThumbsDown || 0);
+            const satisfaction = totalVotes > 0
+                ? Math.round((agg.totalThumbsUp / totalVotes) * 100)
                 : 0;
             document.getElementById('kpi-satisfaction').innerHTML = `${satisfaction}<span class="text-lg">%</span>`;
 
@@ -370,13 +449,15 @@
             
             document.getElementById('stat-p50').textContent = `${p50}ms`;
             document.getElementById('stat-p95').textContent = `${p95}ms`;
-            document.getElementById('stat-tps').textContent = agg.avgTPS || 0;
+            document.getElementById('stat-tps').textContent = Math.round(agg.avgTPS) || 0;
 
             // Feedback
-            const noFeedback = agg.totalQueries - agg.totalThumbsUp - agg.totalThumbsDown;
-            document.getElementById('feedback-up').textContent = agg.totalThumbsUp || 0;
-            document.getElementById('feedback-down').textContent = agg.totalThumbsDown || 0;
-            document.getElementById('feedback-none').textContent = Math.max(0, noFeedback);
+            const thumbsUp = agg.totalThumbsUp || 0;
+            const thumbsDown = agg.totalThumbsDown || 0;
+            const noFeedback = Math.max(0, (agg.totalQueries || allQueries.length) - thumbsUp - thumbsDown);
+            document.getElementById('feedback-up').textContent = thumbsUp;
+            document.getElementById('feedback-down').textContent = thumbsDown;
+            document.getElementById('feedback-none').textContent = noFeedback;
 
             // Self-Eval
             const faithfulness = parseFloat(agg.avgSelfEvalFaithfulness || 0);
@@ -392,7 +473,7 @@
             document.getElementById('bar-coherence').style.width = `${(coherence / 5) * 100}%`;
 
             // Update Charts
-            updateCharts(data);
+            updateCharts(allQueries, agg);
 
             // Update Table
             updateQueriesTable(allQueries);
@@ -503,8 +584,7 @@
             });
         }
 
-        function updateCharts(data) {
-            const allQueries = data.sessions.flatMap(s => s.queries || []);
+        function updateCharts(allQueries, agg) {
             const recent = allQueries.slice(-20);
 
             // Retrieval Chart
@@ -518,9 +598,9 @@
             charts.latency.update();
 
             // Feedback Chart
-            const up = data.aggregates.totalThumbsUp || 0;
-            const down = data.aggregates.totalThumbsDown || 0;
-            const none = Math.max(0, (data.aggregates.totalQueries || 0) - up - down);
+            const up = agg.totalThumbsUp || 0;
+            const down = agg.totalThumbsDown || 0;
+            const none = Math.max(0, (agg.totalQueries || allQueries.length) - up - down);
             charts.feedback.data.datasets[0].data = [up, down, none];
             charts.feedback.update();
         }
@@ -544,7 +624,7 @@
             const recent = queries.slice(-20).reverse();
             
             tbody.innerHTML = recent.map(q => {
-                const time = new Date(q.timestamp).toLocaleTimeString();
+                const time = new Date(q.timestamp).toLocaleString();
                 const queryText = (q.query || '').substring(0, 40) + ((q.query || '').length > 40 ? '...' : '');
                 const ttft = q.generation?.ttftMs || 0;
                 const tps = q.generation?.tokensPerSecond || 0;
@@ -566,7 +646,7 @@
                 
                 return `
                     <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
-                        <td class="py-3 pr-4 text-slate-400">${time}</td>
+                        <td class="py-3 pr-4 text-slate-400 text-xs">${time}</td>
                         <td class="py-3 pr-4" title="${q.query || ''}">${queryText}</td>
                         <td class="py-3 pr-4">${ttft}ms</td>
                         <td class="py-3 pr-4">${tps}</td>
@@ -581,26 +661,28 @@
         // ============================================
         // AI ANALYSIS
         // ============================================
-        function generateAnalysisPrompt(data) {
+        async function generateAnalysisPrompt() {
+            const data = await loadData();
             const agg = data.aggregates;
             const allQueries = data.sessions.flatMap(s => s.queries || []);
             
-            const satisfaction = agg.totalThumbsUp + agg.totalThumbsDown > 0
-                ? Math.round((agg.totalThumbsUp / (agg.totalThumbsUp + agg.totalThumbsDown)) * 100)
+            const totalVotes = (agg.totalThumbsUp || 0) + (agg.totalThumbsDown || 0);
+            const satisfaction = totalVotes > 0
+                ? Math.round((agg.totalThumbsUp / totalVotes) * 100)
                 : 0;
                 
             return `Analyze these RAG system metrics and provide insights:
 
-## Metrics Summary
-- Total Sessions: ${agg.totalSessions}
-- Total Queries: ${agg.totalQueries}
-- User Satisfaction: ${satisfaction}% (${agg.totalThumbsUp} up, ${agg.totalThumbsDown} down)
-- Avg TTFT: ${agg.avgTTFT}ms
-- Avg TPS: ${agg.avgTPS} tokens/sec
-- Avg Top Similarity: ${agg.avgTopSimilarity}
-- Self-Eval Faithfulness: ${agg.avgSelfEvalFaithfulness}/5
-- Self-Eval Relevance: ${agg.avgSelfEvalRelevance}/5
-- Self-Eval Coherence: ${agg.avgSelfEvalCoherence}/5
+## Metrics Summary (Aggregated from ${agg.totalSessions || data.sessions.length} users)
+- Total Sessions: ${agg.totalSessions || data.sessions.length}
+- Total Queries: ${agg.totalQueries || allQueries.length}
+- User Satisfaction: ${satisfaction}% (${agg.totalThumbsUp || 0} up, ${agg.totalThumbsDown || 0} down)
+- Avg TTFT: ${Math.round(agg.avgTTFT) || 0}ms
+- Avg TPS: ${Math.round(agg.avgTPS) || 0} tokens/sec
+- Avg Top Similarity: ${agg.avgTopSimilarity || 0}
+- Self-Eval Faithfulness: ${agg.avgSelfEvalFaithfulness || 0}/5
+- Self-Eval Relevance: ${agg.avgSelfEvalRelevance || 0}/5
+- Self-Eval Coherence: ${agg.avgSelfEvalCoherence || 0}/5
 
 Provide a brief analysis with:
 1. **Strengths** - What's working well
@@ -610,9 +692,8 @@ Provide a brief analysis with:
 Keep it concise (under 200 words).`;
         }
 
-        document.getElementById('generate-analysis-btn').addEventListener('click', () => {
-            const data = loadData();
-            const prompt = generateAnalysisPrompt(data);
+        document.getElementById('generate-analysis-btn').addEventListener('click', async () => {
+            const prompt = await generateAnalysisPrompt();
             
             // Store the prompt and redirect to main app
             localStorage.setItem('pending-analysis-prompt', prompt);
@@ -629,7 +710,7 @@ Keep it concise (under 200 words).`;
                     <div class="mt-4 bg-slate-800 rounded-lg p-3 text-sm text-slate-300 max-h-48 overflow-y-auto">
                         <pre class="whitespace-pre-wrap">${prompt}</pre>
                     </div>
-                    <button onclick="navigator.clipboard.writeText(\`${prompt.replace(/`/g, '\\`')}\`)" class="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+                    <button onclick="navigator.clipboard.writeText(document.querySelector('#analysis-content pre').textContent)" class="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
                         <i class="fas fa-copy mr-1"></i> Copy Prompt
                     </button>
                 </div>
@@ -643,19 +724,30 @@ Keep it concise (under 200 words).`;
             updateDashboard();
         });
 
-        document.getElementById('clear-data-btn').addEventListener('click', () => {
-            if (confirm('Are you sure you want to clear all analytics data? This cannot be undone.')) {
-                localStorage.removeItem(STORAGE_KEY);
-                updateDashboard();
+        document.getElementById('clear-data-btn').addEventListener('click', async () => {
+            if (confirm('Are you sure you want to clear ALL analytics data? This will delete data from ALL users and cannot be undone.')) {
+                try {
+                    if (useFirebase) {
+                        await remove(ref(database, 'sessions'));
+                        await remove(ref(database, 'aggregates'));
+                        console.log('✅ Firebase data cleared');
+                    }
+                    localStorage.removeItem(STORAGE_KEY);
+                    updateDashboard();
+                } catch (e) {
+                    console.error('Error clearing data:', e);
+                    alert('Error clearing Firebase data. Check console for details.');
+                }
             }
         });
 
         // ============================================
         // INITIALIZATION
         // ============================================
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             initCharts();
-            updateDashboard();
+            await updateDashboard();
+            setupRealtimeListener();
             
             // Auto-refresh every 30 seconds
             setInterval(updateDashboard, 30000);
