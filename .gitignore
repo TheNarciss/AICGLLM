@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Cache des modèles Transformers.js
+models/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local env
+.env
+.env.local
+
+# Build (si ajouté plus tard)
+dist/
+build/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+env/
+venv/
