@@ -53,6 +53,10 @@
                 </div>
             </div>
             <div class="flex items-center gap-4">
+                <a href="dashboard.html" class="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 text-purple-400 rounded-lg hover:bg-purple-600/30 transition-colors text-sm">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Dashboard</span>
+                </a>
                 <div id="webgpu-status" class="flex items-center gap-2 text-sm">
                     <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
                     <span class="text-slate-400">Checking WebGPU...</span>
@@ -295,7 +299,9 @@ Be precise, academic, and thorough in your analysis.</textarea>
             LLM_MODEL: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
             TOP_K: 5,
             TEMPERATURE: 0.7,
-            TTS_ENABLED: true
+            TTS_ENABLED: true,
+            SELF_EVAL_ENABLED: true,
+            STORAGE_KEY: 'lit-reviewer-metrics'
         };
 
         const state = {
@@ -304,33 +310,208 @@ Be precise, academic, and thorough in your analysis.</textarea>
             chatHistory: [],
             embeddingPipeline: null,
             whisperPipeline: null,
+            pipelineFactory: null,
             llmEngine: null,
             isProcessing: false,
             isGenerating: false,
             isTranscribing: false,
-            modelsLoaded: false
+            modelsLoaded: false,
+            // Metrics tracking
+            sessionId: crypto.randomUUID(),
+            sessionStartTime: Date.now(),
+            currentQueryMetrics: null,
+            queriesMetrics: []
         };
+
+        // ============================================
+        // METRICS & PERSISTENCE
+        // ============================================
+        
+        // Initialize or load metrics from localStorage
+        function initMetricsStorage() {
+            const existing = localStorage.getItem(CONFIG.STORAGE_KEY);
+            if (!existing) {
+                const initial = {
+                    sessions: [],
+                    aggregates: {
+                        totalSessions: 0,
+                        totalQueries: 0,
+                        totalThumbsUp: 0,
+                        totalThumbsDown: 0,
+                        avgTTFT: 0,
+                        avgTPS: 0,
+                        avgTopSimilarity: 0,
+                        avgSelfEvalFaithfulness: 0,
+                        avgSelfEvalRelevance: 0,
+                        avgSelfEvalCoherence: 0
+                    }
+                };
+                localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(initial));
+            }
+        }
+        
+        // Save current session metrics
+        function saveSessionMetrics() {
+            try {
+                const data = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '{}');
+                
+                // Create session object
+                const session = {
+                    sessionId: state.sessionId,
+                    timestamp: state.sessionStartTime,
+                    userAgent: navigator.userAgent.substring(0, 100),
+                    documentsProcessed: state.documents.length,
+                    totalChunks: state.vectorStore.length,
+                    queries: state.queriesMetrics
+                };
+                
+                // Add session if it has queries
+                if (session.queries.length > 0) {
+                    // Find and update existing session or add new
+                    const existingIdx = data.sessions.findIndex(s => s.sessionId === state.sessionId);
+                    if (existingIdx >= 0) {
+                        data.sessions[existingIdx] = session;
+                    } else {
+                        data.sessions.push(session);
+                    }
+                    
+                    // Recalculate aggregates
+                    updateAggregates(data);
+                    
+                    // Keep only last 100 sessions to avoid localStorage limits
+                    if (data.sessions.length > 100) {
+                        data.sessions = data.sessions.slice(-100);
+                    }
+                    
+                    localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(data));
+                }
+            } catch (e) {
+                console.error('Error saving metrics:', e);
+            }
+        }
+        
+        // Update aggregate statistics
+        function updateAggregates(data) {
+            const allQueries = data.sessions.flatMap(s => s.queries);
+            const queriesWithFeedback = allQueries.filter(q => q.feedback?.userVote);
+            const queriesWithSelfEval = allQueries.filter(q => q.selfEval);
+            
+            data.aggregates = {
+                totalSessions: data.sessions.length,
+                totalQueries: allQueries.length,
+                totalThumbsUp: allQueries.filter(q => q.feedback?.userVote === 'up').length,
+                totalThumbsDown: allQueries.filter(q => q.feedback?.userVote === 'down').length,
+                avgTTFT: allQueries.length > 0 
+                    ? Math.round(allQueries.reduce((sum, q) => sum + (q.generation?.ttftMs || 0), 0) / allQueries.length)
+                    : 0,
+                avgTPS: allQueries.length > 0
+                    ? Math.round(allQueries.reduce((sum, q) => sum + (q.generation?.tokensPerSecond || 0), 0) / allQueries.length)
+                    : 0,
+                avgTopSimilarity: allQueries.length > 0
+                    ? (allQueries.reduce((sum, q) => sum + (q.retrieval?.topSimilarity || 0), 0) / allQueries.length).toFixed(3)
+                    : 0,
+                avgSelfEvalFaithfulness: queriesWithSelfEval.length > 0
+                    ? (queriesWithSelfEval.reduce((sum, q) => sum + (q.selfEval?.faithfulness || 0), 0) / queriesWithSelfEval.length).toFixed(1)
+                    : 0,
+                avgSelfEvalRelevance: queriesWithSelfEval.length > 0
+                    ? (queriesWithSelfEval.reduce((sum, q) => sum + (q.selfEval?.relevance || 0), 0) / queriesWithSelfEval.length).toFixed(1)
+                    : 0,
+                avgSelfEvalCoherence: queriesWithSelfEval.length > 0
+                    ? (queriesWithSelfEval.reduce((sum, q) => sum + (q.selfEval?.coherence || 0), 0) / queriesWithSelfEval.length).toFixed(1)
+                    : 0
+            };
+        }
+        
+        // Record user feedback for a query
+        function recordFeedback(queryId, vote) {
+            const query = state.queriesMetrics.find(q => q.id === queryId);
+            if (query) {
+                query.feedback = { userVote: vote, timestamp: Date.now() };
+                saveSessionMetrics();
+            }
+        }
+        
+        // Run self-evaluation using the LLM
+        async function runSelfEvaluation(queryId, userQuery, context, response) {
+            if (!CONFIG.SELF_EVAL_ENABLED || !state.llmEngine) return;
+            
+            try {
+                const evalPrompt = `Rate this response on a scale of 1-5 for each criterion. Respond ONLY with JSON, no other text.
+
+Question: "${userQuery.substring(0, 200)}"
+
+Context provided: "${context.substring(0, 500)}..."
+
+Response given: "${response.substring(0, 500)}..."
+
+Rate:
+- faithfulness: Does the response only use information from the context? (1=hallucinated, 5=fully grounded)
+- relevance: Does the response answer the question? (1=off-topic, 5=perfectly relevant)  
+- coherence: Is the response well-structured and logical? (1=confusing, 5=clear)
+
+JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
+
+                const evalResponse = await state.llmEngine.chat.completions.create({
+                    messages: [{ role: 'user', content: evalPrompt }],
+                    temperature: 0.1,
+                    max_tokens: 100
+                });
+                
+                const evalText = evalResponse.choices[0]?.message?.content || '';
+                
+                // Parse JSON from response
+                const jsonMatch = evalText.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const evalResult = JSON.parse(jsonMatch[0]);
+                    
+                    // Validate and clamp values
+                    const clamp = (v) => Math.max(1, Math.min(5, parseInt(v) || 3));
+                    
+                    const query = state.queriesMetrics.find(q => q.id === queryId);
+                    if (query) {
+                        query.selfEval = {
+                            faithfulness: clamp(evalResult.faithfulness),
+                            relevance: clamp(evalResult.relevance),
+                            coherence: clamp(evalResult.coherence),
+                            timestamp: Date.now()
+                        };
+                        saveSessionMetrics();
+                    }
+                }
+            } catch (e) {
+                console.error('Self-evaluation error:', e);
+            }
+        }
 
         // ============================================
         // UTILITY FUNCTIONS
         // ============================================
         
-        // Cosine Similarity - Pure JS implementation
+        // Cosine Similarity - Optimized for normalized vectors (just dot product)
+        // Since we use normalize: true in embeddings, ||A|| = ||B|| = 1
         function cosineSimilarity(vecA, vecB) {
-            if (vecA.length !== vecB.length) return 0;
+            const len = vecA.length;
+            if (len !== vecB.length) return 0;
             
-            let dotProduct = 0;
-            let normA = 0;
-            let normB = 0;
+            let dot = 0;
+            // Unroll loop for better performance
+            const remainder = len % 4;
+            let i = 0;
             
-            for (let i = 0; i < vecA.length; i++) {
-                dotProduct += vecA[i] * vecB[i];
-                normA += vecA[i] * vecA[i];
-                normB += vecB[i] * vecB[i];
+            // Process 4 elements at a time
+            for (; i < len - remainder; i += 4) {
+                dot += vecA[i] * vecB[i] +
+                       vecA[i+1] * vecB[i+1] +
+                       vecA[i+2] * vecB[i+2] +
+                       vecA[i+3] * vecB[i+3];
             }
             
-            const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
-            return magnitude === 0 ? 0 : dotProduct / magnitude;
+            // Handle remaining elements
+            for (; i < len; i++) {
+                dot += vecA[i] * vecB[i];
+            }
+            
+            return dot;
         }
 
         // Text chunking with sliding window
@@ -413,6 +594,8 @@ Be precise, academic, and thorough in your analysis.</textarea>
         // ============================================
         // EMBEDDING & VECTOR STORE
         // ============================================
+        
+        // Generate embedding - returns Float32Array directly
         async function generateEmbedding(text) {
             if (!state.embeddingPipeline) {
                 throw new Error('Embedding model not loaded');
@@ -423,41 +606,99 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 normalize: true
             });
             
-            return Array.from(result.data);
+            // Keep as Float32Array for faster math operations
+            return new Float32Array(result.data);
+        }
+        
+        // Batch generate embeddings for multiple texts
+        async function generateEmbeddingsBatch(texts, batchSize = 8) {
+            if (!state.embeddingPipeline) {
+                throw new Error('Embedding model not loaded');
+            }
+            
+            const embeddings = [];
+            
+            for (let i = 0; i < texts.length; i += batchSize) {
+                const batch = texts.slice(i, Math.min(i + batchSize, texts.length));
+                
+                // Process batch in parallel
+                const batchResults = await Promise.all(
+                    batch.map(text => state.embeddingPipeline(text, {
+                        pooling: 'mean',
+                        normalize: true
+                    }))
+                );
+                
+                // Extract embeddings as Float32Array
+                for (const result of batchResults) {
+                    embeddings.push(new Float32Array(result.data));
+                }
+            }
+            
+            return embeddings;
         }
 
         async function addToVectorStore(chunks, source) {
             const totalChunks = chunks.length;
             
-            for (let i = 0; i < chunks.length; i++) {
-                const chunk = chunks[i];
-                const embedding = await generateEmbedding(chunk);
+            // Use batched embedding generation
+            updateProcessingProgress(50, `Embedding ${totalChunks} chunks...`);
+            
+            const batchSize = 8;
+            for (let i = 0; i < chunks.length; i += batchSize) {
+                const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
+                const embeddings = await generateEmbeddingsBatch(batch, batchSize);
                 
-                state.vectorStore.push({
-                    text: chunk,
-                    embedding: embedding,
-                    source: source,
-                    id: `${source}-${i}`
-                });
+                // Add to store
+                for (let j = 0; j < batch.length; j++) {
+                    state.vectorStore.push({
+                        text: batch[j],
+                        embedding: embeddings[j],
+                        source: source,
+                        id: `${source}-${i + j}`
+                    });
+                }
                 
                 // Update progress
-                const progress = 50 + Math.round((i / totalChunks) * 50);
-                updateProcessingProgress(progress, `Embedding chunk ${i + 1}/${totalChunks}...`);
+                const progress = 50 + Math.round(((i + batch.length) / totalChunks) * 50);
+                updateProcessingProgress(progress, `Embedded ${Math.min(i + batchSize, totalChunks)}/${totalChunks} chunks...`);
             }
             
             updateMemoryDisplay();
         }
 
+        // Optimized search with partial sort for top-K
         function searchVectorStore(queryEmbedding, topK = CONFIG.TOP_K) {
-            if (state.vectorStore.length === 0) return [];
+            const len = state.vectorStore.length;
+            if (len === 0) return [];
             
-            const similarities = state.vectorStore.map(item => ({
-                ...item,
-                similarity: cosineSimilarity(queryEmbedding, item.embedding)
+            // Calculate all similarities first
+            const scored = new Array(len);
+            for (let i = 0; i < len; i++) {
+                scored[i] = {
+                    index: i,
+                    similarity: cosineSimilarity(queryEmbedding, state.vectorStore[i].embedding)
+                };
+            }
+            
+            // Partial sort - only find top K (more efficient than full sort)
+            for (let i = 0; i < Math.min(topK, len); i++) {
+                let maxIdx = i;
+                for (let j = i + 1; j < len; j++) {
+                    if (scored[j].similarity > scored[maxIdx].similarity) {
+                        maxIdx = j;
+                    }
+                }
+                if (maxIdx !== i) {
+                    [scored[i], scored[maxIdx]] = [scored[maxIdx], scored[i]];
+                }
+            }
+            
+            // Return top K with full data
+            return scored.slice(0, topK).map(s => ({
+                ...state.vectorStore[s.index],
+                similarity: s.similarity
             }));
-            
-            similarities.sort((a, b) => b.similarity - a.similarity);
-            return similarities.slice(0, topK);
         }
 
         // ============================================
@@ -649,6 +890,9 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 
                 const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1');
                 
+                // Store pipeline factory for lazy loading Whisper later
+                state.pipelineFactory = pipeline;
+                
                 progressText.textContent = 'Loading embedding model...';
                 progressPercent.textContent = '15%';
                 progressBar.style.width = '15%';
@@ -656,27 +900,18 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 state.embeddingPipeline = await pipeline('feature-extraction', CONFIG.EMBEDDING_MODEL, {
                     progress_callback: (progress) => {
                         if (progress.status === 'progress') {
-                            const pct = Math.round(15 + (progress.progress * 0.15));
+                            const pct = Math.round(15 + (progress.progress * 0.25));
                             progressPercent.textContent = `${pct}%`;
                             progressBar.style.width = `${pct}%`;
                         }
                     }
                 });
                 
-                // Load Whisper for STT
-                progressText.textContent = 'Loading Whisper STT model...';
-                progressPercent.textContent = '30%';
-                progressBar.style.width = '30%';
-                
-                state.whisperPipeline = await pipeline('automatic-speech-recognition', CONFIG.WHISPER_MODEL, {
-                    progress_callback: (progress) => {
-                        if (progress.status === 'progress') {
-                            const pct = Math.round(30 + (progress.progress * 0.15));
-                            progressPercent.textContent = `${pct}%`;
-                            progressBar.style.width = `${pct}%`;
-                        }
-                    }
-                });
+                // Skip Whisper for now - will lazy load on first mic click
+                // This saves ~30% of initial load time
+                progressText.textContent = 'Whisper STT will load on first use...';
+                progressPercent.textContent = '40%';
+                progressBar.style.width = '40%';
                 
                 // Load WebLLM
                 progressText.textContent = 'Loading WebLLM...';
@@ -708,7 +943,7 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 document.getElementById('user-input').disabled = false;
                 document.getElementById('send-btn').disabled = false;
                 
-                addMessage('assistant', 'Models loaded successfully! 🎉 I\'m ready to help you analyze your research papers. Upload some PDFs and ask me anything!\n\n🎤 **Voice input enabled** - Click the microphone to speak your questions.');
+                addMessage('assistant', 'Models loaded successfully! 🎉 I\'m ready to help you analyze your research papers. Upload some PDFs and ask me anything!\n\n🎤 **Voice input available** - Click the microphone (Whisper loads on first use).');
                 
             } catch (error) {
                 console.error('Error loading models:', error);
@@ -720,6 +955,23 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 loadBtn.innerHTML = '<i class="fas fa-redo mr-1"></i>Retry';
                 
                 addMessage('assistant', `❌ Error loading models: ${error.message}\n\nPlease make sure you're using a browser with WebGPU support (Chrome 113+ or Edge 113+).`);
+            }
+        }
+        
+        // Lazy load Whisper when needed
+        async function ensureWhisperLoaded() {
+            if (state.whisperPipeline) return true;
+            if (!state.pipelineFactory) return false;
+            
+            try {
+                addMessage('assistant', '🎤 Loading Whisper STT model for the first time...');
+                state.whisperPipeline = await state.pipelineFactory('automatic-speech-recognition', CONFIG.WHISPER_MODEL);
+                addMessage('assistant', '✅ Whisper ready! You can now use voice input.');
+                return true;
+            } catch (error) {
+                console.error('Error loading Whisper:', error);
+                addMessage('assistant', `❌ Failed to load Whisper: ${error.message}`);
+                return false;
             }
         }
 
@@ -735,6 +987,13 @@ Be precise, academic, and thorough in your analysis.</textarea>
             sendBtn.disabled = true;
             userInput.disabled = true;
             
+            // Initialize metrics for this query
+            const queryId = 'q-' + Date.now();
+            const queryStartTime = performance.now();
+            let ttftMs = 0;
+            let firstTokenReceived = false;
+            let tokensGenerated = 0;
+            
             // Add user message
             addMessage('user', userMessage);
             state.chatHistory.push({ role: 'user', content: userMessage });
@@ -745,17 +1004,25 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 // Get relevant context from vector store
                 let relevantChunks = [];
                 let contextText = '';
+                let retrievalMetrics = { topSimilarity: 0, avgSimilarity: 0, sourceDiversity: 0, searchTimeMs: 0 };
                 
                 if (state.vectorStore.length > 0) {
+                    const searchStart = performance.now();
                     const queryEmbedding = await generateEmbedding(userMessage);
                     const topK = parseInt(document.getElementById('top-k').value);
                     relevantChunks = searchVectorStore(queryEmbedding, topK);
+                    retrievalMetrics.searchTimeMs = Math.round(performance.now() - searchStart);
                     
                     if (relevantChunks.length > 0) {
                         showContextPanel(relevantChunks);
                         contextText = relevantChunks.map((chunk, i) => 
                             `[Source: ${chunk.source}]\n${chunk.text}`
                         ).join('\n\n---\n\n');
+                        
+                        // Calculate retrieval metrics
+                        retrievalMetrics.topSimilarity = relevantChunks[0].similarity;
+                        retrievalMetrics.avgSimilarity = relevantChunks.reduce((sum, c) => sum + c.similarity, 0) / relevantChunks.length;
+                        retrievalMetrics.sourceDiversity = new Set(relevantChunks.map(c => c.source)).size;
                     }
                 }
                 
@@ -778,6 +1045,7 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 messages = messages.concat(recentHistory);
                 
                 // Generate response
+                const generationStart = performance.now();
                 const response = await state.llmEngine.chat.completions.create({
                     messages: messages,
                     temperature: temperature,
@@ -808,36 +1076,86 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 const streamingContent = document.getElementById(messageId);
                 
                 for await (const chunk of response) {
+                    // Track TTFT (Time To First Token)
+                    if (!firstTokenReceived) {
+                        ttftMs = Math.round(performance.now() - generationStart);
+                        firstTokenReceived = true;
+                    }
+                    
                     const delta = chunk.choices[0]?.delta?.content || '';
+                    if (delta) tokensGenerated++;
                     fullResponse += delta;
                     streamingContent.innerHTML = markdownToHtml(fullResponse);
                     chatMessages.scrollTop = chatMessages.scrollHeight;
                 }
                 
-                // Add sources to the message
-                if (relevantChunks.length > 0) {
-                    const uniqueSources = [...new Set(relevantChunks.map(s => s.source))];
-                    const sourcesHtml = `
-                        <div class="mt-3 pt-3 border-t border-slate-600">
-                            <div class="text-xs text-slate-400 mb-2">
-                                <i class="fas fa-quote-left mr-1"></i>Sources used:
-                            </div>
-                            <div class="flex flex-wrap gap-2">
-                                ${uniqueSources.map(s => `
-                                    <span class="px-2 py-1 bg-slate-600/50 rounded text-xs text-slate-300">
-                                        <i class="fas fa-file-pdf text-red-400 mr-1"></i>${s}
-                                    </span>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                    messageDiv.querySelector('.prose').innerHTML += sourcesHtml;
-                }
+                const totalTimeMs = Math.round(performance.now() - queryStartTime);
+                const generationTimeMs = Math.round(performance.now() - generationStart);
+                const tokensPerSecond = generationTimeMs > 0 ? Math.round((tokensGenerated / generationTimeMs) * 1000) : 0;
                 
+                // Add sources and feedback buttons to the message
+                const uniqueSources = relevantChunks.length > 0 ? [...new Set(relevantChunks.map(s => s.source))] : [];
+                const sourcesHtml = uniqueSources.length > 0 ? `
+                    <div class="mt-3 pt-3 border-t border-slate-600">
+                        <div class="text-xs text-slate-400 mb-2">
+                            <i class="fas fa-quote-left mr-1"></i>Sources used:
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            ${uniqueSources.map(s => `
+                                <span class="px-2 py-1 bg-slate-600/50 rounded text-xs text-slate-300">
+                                    <i class="fas fa-file-pdf text-red-400 mr-1"></i>${s}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : '';
+                
+                // Add feedback buttons
+                const feedbackHtml = `
+                    <div class="mt-3 pt-3 border-t border-slate-600 flex items-center justify-between">
+                        <div class="text-xs text-slate-500">
+                            <i class="fas fa-tachometer-alt mr-1"></i>
+                            TTFT: ${ttftMs}ms | ${tokensPerSecond} tok/s | Total: ${(totalTimeMs/1000).toFixed(1)}s
+                        </div>
+                        <div class="flex items-center gap-2" id="feedback-${queryId}">
+                            <span class="text-xs text-slate-500">Helpful?</span>
+                            <button onclick="window.recordFeedback('${queryId}', 'up')" class="feedback-btn p-1.5 rounded hover:bg-green-600/30 text-slate-400 hover:text-green-400 transition-colors" title="Yes, helpful">
+                                <i class="fas fa-thumbs-up"></i>
+                            </button>
+                            <button onclick="window.recordFeedback('${queryId}', 'down')" class="feedback-btn p-1.5 rounded hover:bg-red-600/30 text-slate-400 hover:text-red-400 transition-colors" title="Not helpful">
+                                <i class="fas fa-thumbs-down"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                messageDiv.querySelector('.prose').innerHTML += sourcesHtml + feedbackHtml;
                 streamingContent.removeAttribute('id');
                 
                 // Add to history
                 state.chatHistory.push({ role: 'assistant', content: fullResponse });
+                
+                // Store query metrics
+                const queryMetrics = {
+                    id: queryId,
+                    timestamp: Date.now(),
+                    query: userMessage.substring(0, 200),
+                    retrieval: retrievalMetrics,
+                    generation: {
+                        ttftMs,
+                        totalTimeMs,
+                        generationTimeMs,
+                        tokensGenerated,
+                        tokensPerSecond
+                    },
+                    feedback: null,
+                    selfEval: null
+                };
+                state.queriesMetrics.push(queryMetrics);
+                saveSessionMetrics();
+                
+                // Run self-evaluation in background (don't await)
+                runSelfEvaluation(queryId, userMessage, contextText, fullResponse);
                 
                 // TTS if enabled (using browser's SpeechSynthesis)
                 if (CONFIG.TTS_ENABLED && window.speechSynthesis && fullResponse.length < 800) {
@@ -865,11 +1183,31 @@ Be precise, academic, and thorough in your analysis.</textarea>
             userInput.disabled = false;
             userInput.focus();
         }
+        
+        // Expose recordFeedback to window for onclick handlers
+        window.recordFeedback = function(queryId, vote) {
+            recordFeedback(queryId, vote);
+            
+            // Update UI to show feedback was recorded
+            const feedbackDiv = document.getElementById(`feedback-${queryId}`);
+            if (feedbackDiv) {
+                const isUp = vote === 'up';
+                feedbackDiv.innerHTML = `
+                    <span class="text-xs ${isUp ? 'text-green-400' : 'text-red-400'}">
+                        <i class="fas fa-${isUp ? 'thumbs-up' : 'thumbs-down'} mr-1"></i>
+                        ${isUp ? 'Thanks for the feedback!' : 'Thanks, we\'ll improve!'}
+                    </span>
+                `;
+            }
+        };
 
         // ============================================
         // EVENT LISTENERS
         // ============================================
         document.addEventListener('DOMContentLoaded', async () => {
+            // Initialize metrics storage
+            initMetricsStorage();
+            
             // Check WebGPU
             await checkWebGPU();
             
@@ -1062,6 +1400,14 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 if (isRecording && mediaRecorder) {
                     mediaRecorder.stop();
                     return;
+                }
+                
+                // Lazy load Whisper on first use
+                if (!state.whisperPipeline) {
+                    voiceBtn.disabled = true;
+                    const loaded = await ensureWhisperLoaded();
+                    voiceBtn.disabled = false;
+                    if (!loaded) return;
                 }
                 
                 // Start recording

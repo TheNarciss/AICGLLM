@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Analytics Dashboard - Literature Reviewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        .stat-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="text-3xl">📊</div>
+                <div>
+                    <h1 class="text-xl font-bold text-white">Analytics Dashboard</h1>
+                    <p class="text-sm text-slate-400">Performance Metrics & User Feedback Analysis</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="index.html" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600/30 transition-colors text-sm">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Back to App</span>
+                </a>
+                <button id="refresh-btn" class="flex items-center gap-2 px-3 py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors text-sm">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Refresh</span>
+                </button>
+                <button id="clear-data-btn" class="flex items-center gap-2 px-3 py-1.5 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors text-sm">
+                    <i class="fas fa-trash"></i>
+                    <span>Clear Data</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-6">
+        <!-- Top KPI Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="stat-card bg-slate-800 rounded-xl border border-slate-700 p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-slate-400">Total Sessions</p>
+                        <p id="kpi-sessions" class="text-3xl font-bold text-blue-400">0</p>
+                    </div>
+                    <div class="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-users text-blue-400 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card bg-slate-800 rounded-xl border border-slate-700 p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-slate-400">Total Queries</p>
+                        <p id="kpi-queries" class="text-3xl font-bold text-green-400">0</p>
+                    </div>
+                    <div class="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-comments text-green-400 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card bg-slate-800 rounded-xl border border-slate-700 p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-slate-400">Avg TTFT</p>
+                        <p id="kpi-ttft" class="text-3xl font-bold text-yellow-400">0<span class="text-lg">ms</span></p>
+                    </div>
+                    <div class="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-bolt text-yellow-400 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card bg-slate-800 rounded-xl border border-slate-700 p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-slate-400">Satisfaction</p>
+                        <p id="kpi-satisfaction" class="text-3xl font-bold text-purple-400">0<span class="text-lg">%</span></p>
+                    </div>
+                    <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-heart text-purple-400 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- Retrieval Quality Chart -->
+            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i class="fas fa-search text-blue-400"></i>
+                    Retrieval Quality
+                </h3>
+                <div class="h-64">
+                    <canvas id="retrievalChart"></canvas>
+                </div>
+                <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
+                    <div class="bg-slate-700/50 rounded-lg p-3">
+                        <p class="text-slate-400">Avg Top-1 Similarity</p>
+                        <p id="stat-top1" class="text-xl font-bold text-blue-400">0.000</p>
+                    </div>
+                    <div class="bg-slate-700/50 rounded-lg p-3">
+                        <p class="text-slate-400">Avg Top-K Similarity</p>
+                        <p id="stat-topk" class="text-xl font-bold text-cyan-400">0.000</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Latency Distribution Chart -->
+            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i class="fas fa-tachometer-alt text-yellow-400"></i>
+                    Latency Distribution
+                </h3>
+                <div class="h-64">
+                    <canvas id="latencyChart"></canvas>
+                </div>
+                <div class="mt-4 grid grid-cols-3 gap-4 text-sm">
+                    <div class="bg-slate-700/50 rounded-lg p-3">
+                        <p class="text-slate-400">P50 TTFT</p>
+                        <p id="stat-p50" class="text-xl font-bold text-green-400">0ms</p>
+                    </div>
+                    <div class="bg-slate-700/50 rounded-lg p-3">
+                        <p class="text-slate-400">P95 TTFT</p>
+                        <p id="stat-p95" class="text-xl font-bold text-yellow-400">0ms</p>
+                    </div>
+                    <div class="bg-slate-700/50 rounded-lg p-3">
+                        <p class="text-slate-400">Avg TPS</p>
+                        <p id="stat-tps" class="text-xl font-bold text-purple-400">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feedback & Self-Eval Row -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- User Feedback -->
+            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i class="fas fa-thumbs-up text-green-400"></i>
+                    User Feedback
+                </h3>
+                <div class="flex items-center gap-6">
+                    <div class="h-48 w-48">
+                        <canvas id="feedbackChart"></canvas>
+                    </div>
+                    <div class="flex-1 space-y-3">
+                        <div class="flex items-center justify-between p-3 bg-green-600/10 rounded-lg">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-thumbs-up text-green-400"></i>
+                                <span class="text-slate-300">Helpful</span>
+                            </div>
+                            <span id="feedback-up" class="text-xl font-bold text-green-400">0</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-red-600/10 rounded-lg">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-thumbs-down text-red-400"></i>
+                                <span class="text-slate-300">Not Helpful</span>
+                            </div>
+                            <span id="feedback-down" class="text-xl font-bold text-red-400">0</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-question text-slate-400"></i>
+                                <span class="text-slate-300">No Feedback</span>
+                            </div>
+                            <span id="feedback-none" class="text-xl font-bold text-slate-400">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LLM Self-Evaluation -->
+            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i class="fas fa-robot text-purple-400"></i>
+                    LLM Self-Evaluation
+                </h3>
+                <div class="space-y-4">
+                    <!-- Faithfulness -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm text-slate-400">Faithfulness</span>
+                            <span id="eval-faithfulness" class="text-sm font-bold text-blue-400">0.0 / 5</span>
+                        </div>
+                        <div class="h-3 bg-slate-700 rounded-full overflow-hidden">
+                            <div id="bar-faithfulness" class="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1">Does the response only use information from the context?</p>
+                    </div>
+                    
+                    <!-- Relevance -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm text-slate-400">Relevance</span>
+                            <span id="eval-relevance" class="text-sm font-bold text-green-400">0.0 / 5</span>
+                        </div>
+                        <div class="h-3 bg-slate-700 rounded-full overflow-hidden">
+                            <div id="bar-relevance" class="h-full bg-gradient-to-r from-green-600 to-green-400 transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1">Does the response answer the question?</p>
+                    </div>
+                    
+                    <!-- Coherence -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm text-slate-400">Coherence</span>
+                            <span id="eval-coherence" class="text-sm font-bold text-purple-400">0.0 / 5</span>
+                        </div>
+                        <div class="h-3 bg-slate-700 rounded-full overflow-hidden">
+                            <div id="bar-coherence" class="h-full bg-gradient-to-r from-purple-600 to-purple-400 transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1">Is the response well-structured and logical?</p>
+                    </div>
+                    
+                    <div class="mt-4 p-3 bg-slate-700/30 rounded-lg">
+                        <p class="text-xs text-slate-400">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Self-evaluation runs automatically after each response using the same LLM.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Analysis Section -->
+        <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold flex items-center gap-2">
+                    <i class="fas fa-brain text-pink-400"></i>
+                    AI Analysis & Recommendations
+                </h3>
+                <button id="generate-analysis-btn" class="flex items-center gap-2 px-4 py-2 bg-pink-600/20 text-pink-400 rounded-lg hover:bg-pink-600/30 transition-colors text-sm">
+                    <i class="fas fa-magic"></i>
+                    <span>Generate Analysis</span>
+                </button>
+            </div>
+            
+            <div id="analysis-content" class="prose prose-invert max-w-none">
+                <div class="text-slate-400 text-center py-8">
+                    <i class="fas fa-chart-pie text-4xl mb-3 opacity-50"></i>
+                    <p>Click "Generate Analysis" to get AI-powered insights based on your metrics.</p>
+                    <p class="text-sm text-slate-500">Requires returning to the main app to use the LLM.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Queries Table -->
+        <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
+            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                <i class="fas fa-history text-cyan-400"></i>
+                Recent Queries
+            </h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-slate-400 border-b border-slate-700">
+                            <th class="pb-3 pr-4">Time</th>
+                            <th class="pb-3 pr-4">Query</th>
+                            <th class="pb-3 pr-4">TTFT</th>
+                            <th class="pb-3 pr-4">TPS</th>
+                            <th class="pb-3 pr-4">Top Sim</th>
+                            <th class="pb-3 pr-4">Feedback</th>
+                            <th class="pb-3">Self-Eval</th>
+                        </tr>
+                    </thead>
+                    <tbody id="queries-table" class="text-slate-300">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="no-queries" class="text-center py-8 text-slate-500">
+                <i class="fas fa-inbox text-3xl mb-2"></i>
+                <p>No queries recorded yet. Start using the app to see data here.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const STORAGE_KEY = 'lit-reviewer-metrics';
+        let charts = {};
+
+        // ============================================
+        // DATA LOADING
+        // ============================================
+        function loadData() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return { sessions: [], aggregates: getEmptyAggregates() };
+                return JSON.parse(raw);
+            } catch (e) {
+                console.error('Error loading data:', e);
+                return { sessions: [], aggregates: getEmptyAggregates() };
+            }
+        }
+
+        function getEmptyAggregates() {
+            return {
+                totalSessions: 0,
+                totalQueries: 0,
+                totalThumbsUp: 0,
+                totalThumbsDown: 0,
+                avgTTFT: 0,
+                avgTPS: 0,
+                avgTopSimilarity: 0,
+                avgSelfEvalFaithfulness: 0,
+                avgSelfEvalRelevance: 0,
+                avgSelfEvalCoherence: 0
+            };
+        }
+
+        // ============================================
+        // UI UPDATES
+        // ============================================
+        function updateDashboard() {
+            const data = loadData();
+            const agg = data.aggregates;
+            const allQueries = data.sessions.flatMap(s => s.queries || []);
+
+            // KPI Cards
+            document.getElementById('kpi-sessions').textContent = agg.totalSessions || 0;
+            document.getElementById('kpi-queries').textContent = agg.totalQueries || 0;
+            document.getElementById('kpi-ttft').innerHTML = `${agg.avgTTFT || 0}<span class="text-lg">ms</span>`;
+            
+            const satisfaction = agg.totalThumbsUp + agg.totalThumbsDown > 0
+                ? Math.round((agg.totalThumbsUp / (agg.totalThumbsUp + agg.totalThumbsDown)) * 100)
+                : 0;
+            document.getElementById('kpi-satisfaction').innerHTML = `${satisfaction}<span class="text-lg">%</span>`;
+
+            // Retrieval Stats
+            document.getElementById('stat-top1').textContent = parseFloat(agg.avgTopSimilarity || 0).toFixed(3);
+            
+            const avgTopK = allQueries.length > 0
+                ? (allQueries.reduce((sum, q) => sum + (q.retrieval?.avgSimilarity || 0), 0) / allQueries.length).toFixed(3)
+                : '0.000';
+            document.getElementById('stat-topk').textContent = avgTopK;
+
+            // Latency Stats
+            const ttfts = allQueries.map(q => q.generation?.ttftMs || 0).filter(t => t > 0).sort((a, b) => a - b);
+            const p50 = ttfts.length > 0 ? ttfts[Math.floor(ttfts.length * 0.5)] : 0;
+            const p95 = ttfts.length > 0 ? ttfts[Math.floor(ttfts.length * 0.95)] : 0;
+            
+            document.getElementById('stat-p50').textContent = `${p50}ms`;
+            document.getElementById('stat-p95').textContent = `${p95}ms`;
+            document.getElementById('stat-tps').textContent = agg.avgTPS || 0;
+
+            // Feedback
+            const noFeedback = agg.totalQueries - agg.totalThumbsUp - agg.totalThumbsDown;
+            document.getElementById('feedback-up').textContent = agg.totalThumbsUp || 0;
+            document.getElementById('feedback-down').textContent = agg.totalThumbsDown || 0;
+            document.getElementById('feedback-none').textContent = Math.max(0, noFeedback);
+
+            // Self-Eval
+            const faithfulness = parseFloat(agg.avgSelfEvalFaithfulness || 0);
+            const relevance = parseFloat(agg.avgSelfEvalRelevance || 0);
+            const coherence = parseFloat(agg.avgSelfEvalCoherence || 0);
+            
+            document.getElementById('eval-faithfulness').textContent = `${faithfulness.toFixed(1)} / 5`;
+            document.getElementById('eval-relevance').textContent = `${relevance.toFixed(1)} / 5`;
+            document.getElementById('eval-coherence').textContent = `${coherence.toFixed(1)} / 5`;
+            
+            document.getElementById('bar-faithfulness').style.width = `${(faithfulness / 5) * 100}%`;
+            document.getElementById('bar-relevance').style.width = `${(relevance / 5) * 100}%`;
+            document.getElementById('bar-coherence').style.width = `${(coherence / 5) * 100}%`;
+
+            // Update Charts
+            updateCharts(data);
+
+            // Update Table
+            updateQueriesTable(allQueries);
+        }
+
+        // ============================================
+        // CHARTS
+        // ============================================
+        function initCharts() {
+            // Retrieval Quality Chart (Bar)
+            const retrievalCtx = document.getElementById('retrievalChart').getContext('2d');
+            charts.retrieval = new Chart(retrievalCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Top-1 Similarity',
+                        data: [],
+                        backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 1,
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8', maxRotation: 45 }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+
+            // Latency Distribution Chart (Line)
+            const latencyCtx = document.getElementById('latencyChart').getContext('2d');
+            charts.latency = new Chart(latencyCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'TTFT (ms)',
+                        data: [],
+                        borderColor: 'rgba(234, 179, 8, 1)',
+                        backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8', maxTicksLimit: 10 }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+
+            // Feedback Pie Chart
+            const feedbackCtx = document.getElementById('feedbackChart').getContext('2d');
+            charts.feedback = new Chart(feedbackCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Helpful', 'Not Helpful', 'No Feedback'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: [
+                            'rgba(34, 197, 94, 0.7)',
+                            'rgba(239, 68, 68, 0.7)',
+                            'rgba(100, 116, 139, 0.5)'
+                        ],
+                        borderColor: [
+                            'rgba(34, 197, 94, 1)',
+                            'rgba(239, 68, 68, 1)',
+                            'rgba(100, 116, 139, 1)'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        function updateCharts(data) {
+            const allQueries = data.sessions.flatMap(s => s.queries || []);
+            const recent = allQueries.slice(-20);
+
+            // Retrieval Chart
+            charts.retrieval.data.labels = recent.map((_, i) => `Q${i + 1}`);
+            charts.retrieval.data.datasets[0].data = recent.map(q => q.retrieval?.topSimilarity || 0);
+            charts.retrieval.update();
+
+            // Latency Chart
+            charts.latency.data.labels = recent.map((_, i) => `Q${i + 1}`);
+            charts.latency.data.datasets[0].data = recent.map(q => q.generation?.ttftMs || 0);
+            charts.latency.update();
+
+            // Feedback Chart
+            const up = data.aggregates.totalThumbsUp || 0;
+            const down = data.aggregates.totalThumbsDown || 0;
+            const none = Math.max(0, (data.aggregates.totalQueries || 0) - up - down);
+            charts.feedback.data.datasets[0].data = [up, down, none];
+            charts.feedback.update();
+        }
+
+        // ============================================
+        // QUERIES TABLE
+        // ============================================
+        function updateQueriesTable(queries) {
+            const tbody = document.getElementById('queries-table');
+            const noQueries = document.getElementById('no-queries');
+            
+            if (queries.length === 0) {
+                tbody.innerHTML = '';
+                noQueries.classList.remove('hidden');
+                return;
+            }
+            
+            noQueries.classList.add('hidden');
+            
+            // Show last 20 queries, most recent first
+            const recent = queries.slice(-20).reverse();
+            
+            tbody.innerHTML = recent.map(q => {
+                const time = new Date(q.timestamp).toLocaleTimeString();
+                const queryText = (q.query || '').substring(0, 40) + ((q.query || '').length > 40 ? '...' : '');
+                const ttft = q.generation?.ttftMs || 0;
+                const tps = q.generation?.tokensPerSecond || 0;
+                const topSim = (q.retrieval?.topSimilarity || 0).toFixed(3);
+                
+                let feedbackHtml = '<span class="text-slate-500">—</span>';
+                if (q.feedback?.userVote === 'up') {
+                    feedbackHtml = '<i class="fas fa-thumbs-up text-green-400"></i>';
+                } else if (q.feedback?.userVote === 'down') {
+                    feedbackHtml = '<i class="fas fa-thumbs-down text-red-400"></i>';
+                }
+                
+                let evalHtml = '<span class="text-slate-500">—</span>';
+                if (q.selfEval) {
+                    const avg = ((q.selfEval.faithfulness + q.selfEval.relevance + q.selfEval.coherence) / 3).toFixed(1);
+                    const color = avg >= 4 ? 'text-green-400' : avg >= 3 ? 'text-yellow-400' : 'text-red-400';
+                    evalHtml = `<span class="${color}">${avg}/5</span>`;
+                }
+                
+                return `
+                    <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                        <td class="py-3 pr-4 text-slate-400">${time}</td>
+                        <td class="py-3 pr-4" title="${q.query || ''}">${queryText}</td>
+                        <td class="py-3 pr-4">${ttft}ms</td>
+                        <td class="py-3 pr-4">${tps}</td>
+                        <td class="py-3 pr-4">${topSim}</td>
+                        <td class="py-3 pr-4">${feedbackHtml}</td>
+                        <td class="py-3">${evalHtml}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ============================================
+        // AI ANALYSIS
+        // ============================================
+        function generateAnalysisPrompt(data) {
+            const agg = data.aggregates;
+            const allQueries = data.sessions.flatMap(s => s.queries || []);
+            
+            const satisfaction = agg.totalThumbsUp + agg.totalThumbsDown > 0
+                ? Math.round((agg.totalThumbsUp / (agg.totalThumbsUp + agg.totalThumbsDown)) * 100)
+                : 0;
+                
+            return `Analyze these RAG system metrics and provide insights:
+
+## Metrics Summary
+- Total Sessions: ${agg.totalSessions}
+- Total Queries: ${agg.totalQueries}
+- User Satisfaction: ${satisfaction}% (${agg.totalThumbsUp} up, ${agg.totalThumbsDown} down)
+- Avg TTFT: ${agg.avgTTFT}ms
+- Avg TPS: ${agg.avgTPS} tokens/sec
+- Avg Top Similarity: ${agg.avgTopSimilarity}
+- Self-Eval Faithfulness: ${agg.avgSelfEvalFaithfulness}/5
+- Self-Eval Relevance: ${agg.avgSelfEvalRelevance}/5
+- Self-Eval Coherence: ${agg.avgSelfEvalCoherence}/5
+
+Provide a brief analysis with:
+1. **Strengths** - What's working well
+2. **Areas for Improvement** - What could be better
+3. **Recommendations** - Specific actionable suggestions
+
+Keep it concise (under 200 words).`;
+        }
+
+        document.getElementById('generate-analysis-btn').addEventListener('click', () => {
+            const data = loadData();
+            const prompt = generateAnalysisPrompt(data);
+            
+            // Store the prompt and redirect to main app
+            localStorage.setItem('pending-analysis-prompt', prompt);
+            
+            const content = document.getElementById('analysis-content');
+            content.innerHTML = `
+                <div class="bg-slate-700/30 rounded-lg p-4">
+                    <p class="text-slate-300 mb-3">To generate AI analysis:</p>
+                    <ol class="list-decimal list-inside text-slate-400 space-y-2">
+                        <li>Go back to the main app</li>
+                        <li>Make sure models are loaded</li>
+                        <li>Paste this prompt in the chat:</li>
+                    </ol>
+                    <div class="mt-4 bg-slate-800 rounded-lg p-3 text-sm text-slate-300 max-h-48 overflow-y-auto">
+                        <pre class="whitespace-pre-wrap">${prompt}</pre>
+                    </div>
+                    <button onclick="navigator.clipboard.writeText(\`${prompt.replace(/`/g, '\\`')}\`)" class="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+                        <i class="fas fa-copy mr-1"></i> Copy Prompt
+                    </button>
+                </div>
+            `;
+        });
+
+        // ============================================
+        // EVENT HANDLERS
+        // ============================================
+        document.getElementById('refresh-btn').addEventListener('click', () => {
+            updateDashboard();
+        });
+
+        document.getElementById('clear-data-btn').addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear all analytics data? This cannot be undone.')) {
+                localStorage.removeItem(STORAGE_KEY);
+                updateDashboard();
+            }
+        });
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            updateDashboard();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(updateDashboard, 30000);
+        });
+    </script>
+</body>
+</html>
