@@ -154,6 +154,17 @@
                                    class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                         </div>
                         
+                        <!-- TTS Toggle -->
+                        <div class="flex items-center justify-between">
+                            <label class="text-sm text-slate-400 flex items-center gap-2">
+                                <i class="fas fa-volume-up"></i>
+                                <span>Text-to-Speech</span>
+                            </label>
+                            <button id="tts-toggle" class="relative w-12 h-6 bg-green-600 rounded-full transition-colors">
+                                <span class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform transform translate-x-6"></span>
+                            </button>
+                        </div>
+                        
                         <!-- System Prompt -->
                         <div>
                             <label class="text-sm text-slate-400 mb-1 block">System Prompt</label>
@@ -280,9 +291,11 @@ Be precise, academic, and thorough in your analysis.</textarea>
             CHUNK_SIZE: 500,
             CHUNK_OVERLAP: 100,
             EMBEDDING_MODEL: 'Xenova/all-MiniLM-L6-v2',
+            WHISPER_MODEL: 'Xenova/whisper-tiny',
             LLM_MODEL: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
             TOP_K: 5,
-            TEMPERATURE: 0.7
+            TEMPERATURE: 0.7,
+            TTS_ENABLED: true
         };
 
         const state = {
@@ -290,9 +303,11 @@ Be precise, academic, and thorough in your analysis.</textarea>
             documents: [],
             chatHistory: [],
             embeddingPipeline: null,
+            whisperPipeline: null,
             llmEngine: null,
             isProcessing: false,
             isGenerating: false,
+            isTranscribing: false,
             modelsLoaded: false
         };
 
@@ -629,19 +644,34 @@ Be precise, academic, and thorough in your analysis.</textarea>
             try {
                 // Load Transformers.js for embeddings
                 progressText.textContent = 'Loading Transformers.js...';
-                progressPercent.textContent = '10%';
-                progressBar.style.width = '10%';
+                progressPercent.textContent = '5%';
+                progressBar.style.width = '5%';
                 
                 const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1');
                 
                 progressText.textContent = 'Loading embedding model...';
-                progressPercent.textContent = '30%';
-                progressBar.style.width = '30%';
+                progressPercent.textContent = '15%';
+                progressBar.style.width = '15%';
                 
                 state.embeddingPipeline = await pipeline('feature-extraction', CONFIG.EMBEDDING_MODEL, {
                     progress_callback: (progress) => {
                         if (progress.status === 'progress') {
-                            const pct = Math.round(30 + (progress.progress * 0.2));
+                            const pct = Math.round(15 + (progress.progress * 0.15));
+                            progressPercent.textContent = `${pct}%`;
+                            progressBar.style.width = `${pct}%`;
+                        }
+                    }
+                });
+                
+                // Load Whisper for STT
+                progressText.textContent = 'Loading Whisper STT model...';
+                progressPercent.textContent = '30%';
+                progressBar.style.width = '30%';
+                
+                state.whisperPipeline = await pipeline('automatic-speech-recognition', CONFIG.WHISPER_MODEL, {
+                    progress_callback: (progress) => {
+                        if (progress.status === 'progress') {
+                            const pct = Math.round(30 + (progress.progress * 0.15));
                             progressPercent.textContent = `${pct}%`;
                             progressBar.style.width = `${pct}%`;
                         }
@@ -650,8 +680,8 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 
                 // Load WebLLM
                 progressText.textContent = 'Loading WebLLM...';
-                progressPercent.textContent = '50%';
-                progressBar.style.width = '50%';
+                progressPercent.textContent = '45%';
+                progressBar.style.width = '45%';
                 
                 const webllm = await import('https://esm.run/@mlc-ai/web-llm');
                 
@@ -659,7 +689,7 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 
                 state.llmEngine = await webllm.CreateMLCEngine(CONFIG.LLM_MODEL, {
                     initProgressCallback: (progress) => {
-                        const pct = Math.round(50 + (progress.progress * 50));
+                        const pct = Math.round(45 + (progress.progress * 55));
                         progressPercent.textContent = `${pct}%`;
                         progressBar.style.width = `${pct}%`;
                         progressText.textContent = progress.text || 'Loading LLM...';
@@ -678,7 +708,7 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 document.getElementById('user-input').disabled = false;
                 document.getElementById('send-btn').disabled = false;
                 
-                addMessage('assistant', 'Models loaded successfully! 🎉 I\'m ready to help you analyze your research papers. Upload some PDFs and ask me anything!');
+                addMessage('assistant', 'Models loaded successfully! 🎉 I\'m ready to help you analyze your research papers. Upload some PDFs and ask me anything!\n\n🎤 **Voice input enabled** - Click the microphone to speak your questions.');
                 
             } catch (error) {
                 console.error('Error loading models:', error);
@@ -810,8 +840,18 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 state.chatHistory.push({ role: 'assistant', content: fullResponse });
                 
                 // TTS if enabled (using browser's SpeechSynthesis)
-                if (window.speechSynthesis && fullResponse.length < 500) {
-                    // Only for shorter responses
+                if (CONFIG.TTS_ENABLED && window.speechSynthesis && fullResponse.length < 800) {
+                    window.speechSynthesis.cancel();
+                    const cleanText = fullResponse
+                        .replace(/\*\*/g, '')
+                        .replace(/\*/g, '')
+                        .replace(/#{1,3}\s/g, '')
+                        .replace(/`/g, '')
+                        .substring(0, 500);
+                    const utterance = new SpeechSynthesisUtterance(cleanText);
+                    utterance.rate = 1.0;
+                    utterance.pitch = 1.0;
+                    window.speechSynthesis.speak(utterance);
                 }
                 
             } catch (error) {
@@ -931,6 +971,23 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 CONFIG.TOP_K = parseInt(e.target.value);
             });
             
+            // TTS Toggle
+            const ttsToggle = document.getElementById('tts-toggle');
+            ttsToggle.addEventListener('click', () => {
+                CONFIG.TTS_ENABLED = !CONFIG.TTS_ENABLED;
+                const toggleKnob = ttsToggle.querySelector('span');
+                if (CONFIG.TTS_ENABLED) {
+                    ttsToggle.classList.remove('bg-slate-600');
+                    ttsToggle.classList.add('bg-green-600');
+                    toggleKnob.classList.add('translate-x-6');
+                } else {
+                    ttsToggle.classList.remove('bg-green-600');
+                    ttsToggle.classList.add('bg-slate-600');
+                    toggleKnob.classList.remove('translate-x-6');
+                    window.speechSynthesis.cancel(); // Stop any ongoing speech
+                }
+            });
+            
             // Chat input
             const userInput = document.getElementById('user-input');
             const sendBtn = document.getElementById('send-btn');
@@ -963,11 +1020,33 @@ Be precise, academic, and thorough in your analysis.</textarea>
                 document.getElementById('context-panel').classList.add('hidden');
             });
             
-            // Voice input (bonus feature)
+            // TTS Function - Read response aloud
+            function speakText(text) {
+                if (!CONFIG.TTS_ENABLED || !window.speechSynthesis) return;
+                
+                // Cancel any ongoing speech
+                window.speechSynthesis.cancel();
+                
+                // Clean text for speech (remove markdown)
+                const cleanText = text
+                    .replace(/\*\*/g, '')
+                    .replace(/\*/g, '')
+                    .replace(/#{1,3}\s/g, '')
+                    .replace(/`/g, '')
+                    .substring(0, 500); // Limit length
+                
+                const utterance = new SpeechSynthesisUtterance(cleanText);
+                utterance.rate = 1.0;
+                utterance.pitch = 1.0;
+                window.speechSynthesis.speak(utterance);
+            }
+            
+            // Voice input with Whisper STT
             const voiceBtn = document.getElementById('voice-btn');
             const voiceIndicator = document.getElementById('voice-indicator');
             let mediaRecorder = null;
             let audioChunks = [];
+            let isRecording = false;
             
             voiceBtn.addEventListener('click', async () => {
                 if (!state.modelsLoaded) {
@@ -975,39 +1054,127 @@ Be precise, academic, and thorough in your analysis.</textarea>
                     return;
                 }
                 
-                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                if (state.isTranscribing) {
+                    return; // Already transcribing
+                }
+                
+                // If recording, stop and transcribe
+                if (isRecording && mediaRecorder) {
                     mediaRecorder.stop();
-                    voiceIndicator.classList.add('hidden');
-                    voiceBtn.classList.remove('text-red-500');
                     return;
                 }
                 
+                // Start recording
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream);
-                    audioChunks = [];
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            sampleRate: 16000,
+                            channelCount: 1
+                        }
+                    });
                     
-                    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                    audioChunks = [];
+                    isRecording = true;
+                    
+                    mediaRecorder.ondataavailable = (e) => {
+                        if (e.data.size > 0) {
+                            audioChunks.push(e.data);
+                        }
+                    };
                     
                     mediaRecorder.onstop = async () => {
+                        isRecording = false;
                         stream.getTracks().forEach(track => track.stop());
+                        voiceIndicator.querySelector('span').textContent = 'Transcribing...';
+                        voiceBtn.classList.remove('text-red-500');
+                        voiceBtn.classList.add('text-yellow-500');
+                        state.isTranscribing = true;
                         
-                        // For now, use Web Speech API for STT (Whisper would require more setup)
-                        addMessage('assistant', '🎤 Voice input recorded. (Note: Full Whisper STT requires additional setup. Using browser speech recognition as fallback.)');
+                        try {
+                            // Convert to blob
+                            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                            
+                            // Convert blob to audio buffer using Web Audio API
+                            const audioContext = new AudioContext({ sampleRate: 16000 });
+                            const arrayBuffer = await audioBlob.arrayBuffer();
+                            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                            
+                            // Get Float32Array from the audio buffer (mono, 16kHz)
+                            let audioData;
+                            if (audioBuffer.numberOfChannels > 1) {
+                                // Mix stereo to mono
+                                const left = audioBuffer.getChannelData(0);
+                                const right = audioBuffer.getChannelData(1);
+                                audioData = new Float32Array(left.length);
+                                for (let i = 0; i < left.length; i++) {
+                                    audioData[i] = (left[i] + right[i]) / 2;
+                                }
+                            } else {
+                                audioData = audioBuffer.getChannelData(0);
+                            }
+                            
+                            // Resample to 16kHz if needed
+                            const targetSampleRate = 16000;
+                            if (audioBuffer.sampleRate !== targetSampleRate) {
+                                const ratio = audioBuffer.sampleRate / targetSampleRate;
+                                const newLength = Math.round(audioData.length / ratio);
+                                const resampled = new Float32Array(newLength);
+                                for (let i = 0; i < newLength; i++) {
+                                    const srcIdx = Math.floor(i * ratio);
+                                    resampled[i] = audioData[srcIdx];
+                                }
+                                audioData = resampled;
+                            }
+                            
+                            await audioContext.close();
+                            
+                            // Transcribe with Whisper (English)
+                            if (state.whisperPipeline) {
+                                const result = await state.whisperPipeline(audioData, {
+                                    language: 'english',
+                                    task: 'transcribe'
+                                });
+                                const transcription = result.text.trim();
+                                
+                                voiceIndicator.classList.add('hidden');
+                                voiceBtn.classList.remove('text-yellow-500');
+                                state.isTranscribing = false;
+                                
+                                if (transcription && transcription.length > 0) {
+                                    // Put transcription in input field
+                                    const userInput = document.getElementById('user-input');
+                                    userInput.value = transcription;
+                                    document.getElementById('char-count').textContent = `${transcription.length} / 2000`;
+                                    
+                                    // Auto-send the message
+                                    handleChat(transcription);
+                                    userInput.value = '';
+                                    document.getElementById('char-count').textContent = '0 / 2000';
+                                } else {
+                                    addMessage('assistant', '🎤 Could not detect any speech. Please try again.');
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Transcription error:', error);
+                            voiceIndicator.classList.add('hidden');
+                            voiceBtn.classList.remove('text-yellow-500');
+                            state.isTranscribing = false;
+                            addMessage('assistant', `❌ Transcription error: ${error.message}`);
+                        }
                     };
                     
                     mediaRecorder.start();
                     voiceIndicator.classList.remove('hidden');
+                    voiceIndicator.querySelector('span').textContent = 'Listening...';
                     voiceBtn.classList.add('text-red-500');
                     
-                    // Auto-stop after 10 seconds
+                    // Auto-stop after 15 seconds
                     setTimeout(() => {
                         if (mediaRecorder && mediaRecorder.state === 'recording') {
                             mediaRecorder.stop();
-                            voiceIndicator.classList.add('hidden');
-                            voiceBtn.classList.remove('text-red-500');
                         }
-                    }, 10000);
+                    }, 15000);
                     
                 } catch (error) {
                     console.error('Microphone error:', error);
