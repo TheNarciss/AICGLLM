@@ -29,7 +29,6 @@
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
-    <!-- Header -->
     <header class="bg-slate-800 border-b border-slate-700 px-6 py-4">
         <div class="max-w-7xl mx-auto flex items-center justify-between">
             <div class="flex items-center gap-3">
@@ -61,7 +60,6 @@
     </header>
 
     <main class="max-w-7xl mx-auto p-6">
-        <!-- Top KPI Cards -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div class="stat-card bg-slate-800 rounded-xl border border-slate-700 p-4">
                 <div class="flex items-center justify-between">
@@ -112,9 +110,7 @@
             </div>
         </div>
 
-        <!-- Charts Row -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <!-- Retrieval Quality Chart -->
             <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
                 <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
                     <i class="fas fa-search text-blue-400"></i>
@@ -135,7 +131,6 @@
                 </div>
             </div>
 
-            <!-- Latency Distribution Chart -->
             <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
                 <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
                     <i class="fas fa-tachometer-alt text-yellow-400"></i>
@@ -161,9 +156,7 @@
             </div>
         </div>
 
-        <!-- Feedback & Self-Eval Row -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <!-- User Feedback -->
             <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
                 <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
                     <i class="fas fa-thumbs-up text-green-400"></i>
@@ -199,14 +192,12 @@
                 </div>
             </div>
 
-            <!-- LLM Self-Evaluation -->
             <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
                 <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
                     <i class="fas fa-robot text-purple-400"></i>
                     LLM Self-Evaluation
                 </h3>
                 <div class="space-y-4">
-                    <!-- Faithfulness -->
                     <div>
                         <div class="flex items-center justify-between mb-1">
                             <span class="text-sm text-slate-400">Faithfulness</span>
@@ -218,7 +209,6 @@
                         <p class="text-xs text-slate-500 mt-1">Does the response only use information from the context?</p>
                     </div>
                     
-                    <!-- Relevance -->
                     <div>
                         <div class="flex items-center justify-between mb-1">
                             <span class="text-sm text-slate-400">Relevance</span>
@@ -230,7 +220,6 @@
                         <p class="text-xs text-slate-500 mt-1">Does the response answer the question?</p>
                     </div>
                     
-                    <!-- Coherence -->
                     <div>
                         <div class="flex items-center justify-between mb-1">
                             <span class="text-sm text-slate-400">Coherence</span>
@@ -252,7 +241,6 @@
             </div>
         </div>
 
-        <!-- AI Analysis Section -->
         <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 mb-6">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-semibold flex items-center gap-2">
@@ -260,7 +248,6 @@
                     AI Analysis & Recommendations
                 </h3>
                 <div class="flex items-center gap-2">
-                    <!-- LLM Status -->
                     <div id="llm-status" class="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 rounded-lg text-sm">
                         <span id="llm-indicator" class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
                         <span id="llm-text" class="text-slate-400">Auto-loading LLM...</span>
@@ -276,7 +263,6 @@
                 </div>
             </div>
             
-            <!-- LLM Loading Progress -->
             <div id="llm-progress" class="hidden mb-4">
                 <div class="flex items-center justify-between text-sm mb-1">
                     <span id="llm-progress-text" class="text-slate-400">Loading...</span>
@@ -296,7 +282,6 @@
             </div>
         </div>
 
-        <!-- Recent Queries Table -->
         <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
             <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
                 <i class="fas fa-history text-cyan-400"></i>
@@ -316,8 +301,7 @@
                         </tr>
                     </thead>
                     <tbody id="queries-table" class="text-slate-300">
-                        <!-- Populated by JS -->
-                    </tbody>
+                        </tbody>
                 </table>
             </div>
             <div id="no-queries" class="text-center py-8 text-slate-500">
@@ -359,6 +343,20 @@
         let llmEngine = null;
         let isLLMLoading = false;
         let isGenerating = false;
+
+        // ============================================
+        // SECURITY CONFIGURATION
+        // ============================================
+        const AUTH_KEY_HASH = "e382d5089311689255097945d82c40c342f5617c06206d997233894562086e5c"; // mdpclementgardair
+
+        async function verifyPassword(input) {
+            if (!input) return false;
+            const msgUint8 = new TextEncoder().encode(input);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex === AUTH_KEY_HASH;
+        }
 
         // ============================================
         // LLM LOADING & GENERATION
@@ -900,7 +898,17 @@ Keep it concise (under 200 words).`;
         });
 
         document.getElementById('clear-data-btn').addEventListener('click', async () => {
-            if (confirm('Are you sure you want to clear ALL analytics data? This will delete data from ALL users and cannot be undone.')) {
+            // Demande de mot de passe avant suppression
+            const password = prompt('Action sécurisée : Veuillez entrer le mot de passe pour effacer les données :');
+            
+            const isValid = await verifyPassword(password);
+            
+            if (!isValid) {
+                alert('❌ Mot de passe incorrect. Accès refusé.');
+                return;
+            }
+
+            if (confirm('⚠️ ATTENTION : Vous allez supprimer TOUTES les données Firebase et locales. Cette action est irréversible. Confirmer ?')) {
                 try {
                     if (useFirebase) {
                         await remove(ref(database, 'sessions'));
@@ -908,6 +916,7 @@ Keep it concise (under 200 words).`;
                         console.log('✅ Firebase data cleared');
                     }
                     localStorage.removeItem(STORAGE_KEY);
+                    alert('✅ Données effacées avec succès.');
                     updateDashboard();
                 } catch (e) {
                     console.error('Error clearing data:', e);
