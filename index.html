@@ -1364,8 +1364,8 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         // EVENT LISTENERS
         // ============================================
         document.addEventListener('DOMContentLoaded', async () => {
-            // Initialize metrics storage
-            initMetricsStorage();
+            // Initialize metrics storage (don't wait, let it run in background)
+            initMetricsStorage().catch(e => console.warn('Metrics init:', e));
             
             // Check WebGPU
             await checkWebGPU();
@@ -1447,10 +1447,11 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             
             // Load models button
             document.getElementById('load-models-btn').addEventListener('click', loadModels);
-
-            // Auto-load models on page load
+            
+            // AUTO-LOAD: Start loading models immediately
+            console.log('🚀 Auto-loading models...');
             loadModels();
-
+            
             // Clear memory
             document.getElementById('clear-memory').addEventListener('click', () => {
                 state.vectorStore = [];
