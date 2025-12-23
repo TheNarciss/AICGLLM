@@ -1447,7 +1447,10 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             
             // Load models button
             document.getElementById('load-models-btn').addEventListener('click', loadModels);
-            
+
+            // Auto-load models on page load
+            loadModels();
+
             // Clear memory
             document.getElementById('clear-memory').addEventListener('click', () => {
                 state.vectorStore = [];
