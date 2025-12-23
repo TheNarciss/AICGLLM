@@ -86,20 +86,27 @@ export class AdvancedAnalytics {
      * Calculate context utilization rate
      */
     calculateContextUtilization(response, contextChunks) {
+        // New definition: proportion of meaningful response tokens
+        // that appear in the provided context. This is more
+        // interpretable than dividing by total context size.
         if (!contextChunks || contextChunks.length === 0) return 0;
-        
-        const contextText = contextChunks.map(c => c.text.toLowerCase()).join(' ');
-        const responseWords = new Set(response.toLowerCase().split(/\s+/));
-        const contextWords = new Set(contextText.split(/\s+/));
-        
-        let usedWords = 0;
-        responseWords.forEach(word => {
-            if (contextWords.has(word) && word.length > 3) {
-                usedWords++;
-            }
-        });
-        
-        return contextWords.size > 0 ? usedWords / contextWords.size : 0;
+
+        const stopwords = new Set([
+            'the','and','to','of','in','a','is','it','that','for','on','with','as','are','was','were','be','by','this','which','or','an','from','at','but','not','have','has','had','we','they','their','its','may','can','these','those','such'
+        ]);
+
+        const tokenize = (text) => (text || '').toLowerCase().split(/[^a-z0-9]+/).filter(t => t && t.length > 0);
+
+        const responseTokens = tokenize(response).filter(t => t.length > 2 && !stopwords.has(t));
+        if (responseTokens.length === 0) return 0;
+
+        const contextText = contextChunks.map(c => c.text || '').join(' ');
+        const contextSet = new Set(tokenize(contextText));
+
+        let used = 0;
+        responseTokens.forEach(tok => { if (contextSet.has(tok)) used++; });
+
+        return used / responseTokens.length;
     }
     
     /**

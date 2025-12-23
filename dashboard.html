@@ -740,14 +740,58 @@
             document.getElementById('stat-tps').textContent = Math.round(agg.avgTPS) || 0;
 
             // Update advanced KPIs
-            document.getElementById('kpi-context-util').textContent = Math.round((agg.avgContextUtilization || 0) * 100);
-            document.getElementById('kpi-grounding').textContent = Math.round((agg.avgAnswerGrounding || 0) * 100);
-            document.getElementById('kpi-hallucination').textContent = Math.round((agg.avgHallucinationScore || 0) * 100);
-            document.getElementById('kpi-completeness').textContent = Math.round((agg.avgCompleteness || 0) * 100);
+            // If aggregates stored in Firebase don't include advanced metrics,
+            // compute them from the per-query records we just loaded (allQueries).
+            function computeAdvancedFromQueries(queries) {
+                const avg = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+                const safe = (q, path) => {
+                    try {
+                        return path.split('.').reduce((a, k) => (a && a[k] !== undefined) ? a[k] : 0, q) || 0;
+                    } catch (e) { return 0; }
+                };
 
-            document.getElementById('stat-distinct1').textContent = (agg.avgDistinct1 || 0).toFixed(3);
-            document.getElementById('stat-distinct2').textContent = (agg.avgDistinct2 || 0).toFixed(3);
-            document.getElementById('stat-avg-length').textContent = Math.round(agg.avgResponseLength || 0);
+                const ctxArr = queries.map(q => safe(q, 'advanced.contextUtilization'));
+                const groundingArr = queries.map(q => safe(q, 'advanced.answerGrounding'));
+                const hallucArr = queries.map(q => safe(q, 'advanced.hallucinationScore'));
+                const completeArr = queries.map(q => safe(q, 'advanced.completeness'));
+                const d1Arr = queries.map(q => safe(q, 'advanced.distinct1'));
+                const d2Arr = queries.map(q => safe(q, 'advanced.distinct2'));
+                const lenArr = queries.map(q => safe(q, 'advanced.responseLength'));
+
+                return {
+                    avgContextUtilization: avg(ctxArr),
+                    avgAnswerGrounding: avg(groundingArr),
+                    avgHallucinationScore: avg(hallucArr),
+                    avgCompleteness: avg(completeArr),
+                    avgDistinct1: avg(d1Arr),
+                    avgDistinct2: avg(d2Arr),
+                    avgResponseLength: avg(lenArr)
+                };
+            }
+
+            const computedAdvanced = computeAdvancedFromQueries(allQueries || []);
+
+            const ctxVal = (agg.avgContextUtilization !== undefined && agg.avgContextUtilization !== null)
+                ? agg.avgContextUtilization
+                : computedAdvanced.avgContextUtilization || 0;
+            const groundingVal = (agg.avgAnswerGrounding !== undefined && agg.avgAnswerGrounding !== null)
+                ? agg.avgAnswerGrounding
+                : computedAdvanced.avgAnswerGrounding || 0;
+            const hallucVal = (agg.avgHallucinationScore !== undefined && agg.avgHallucinationScore !== null)
+                ? agg.avgHallucinationScore
+                : computedAdvanced.avgHallucinationScore || 0;
+            const completeVal = (agg.avgCompleteness !== undefined && agg.avgCompleteness !== null)
+                ? agg.avgCompleteness
+                : computedAdvanced.avgCompleteness || 0;
+
+            document.getElementById('kpi-context-util').textContent = Math.round((ctxVal || 0) * 100);
+            document.getElementById('kpi-grounding').textContent = Math.round((groundingVal || 0) * 100);
+            document.getElementById('kpi-hallucination').textContent = Math.round((hallucVal || 0) * 100);
+            document.getElementById('kpi-completeness').textContent = Math.round((completeVal || 0) * 100);
+
+            document.getElementById('stat-distinct1').textContent = (agg.avgDistinct1 || computedAdvanced.avgDistinct1 || 0).toFixed(3);
+            document.getElementById('stat-distinct2').textContent = (agg.avgDistinct2 || computedAdvanced.avgDistinct2 || 0).toFixed(3);
+            document.getElementById('stat-avg-length').textContent = Math.round(agg.avgResponseLength || computedAdvanced.avgResponseLength || 0);
 
             // Feedback
             const thumbsUp = agg.totalThumbsUp || 0;

@@ -142,9 +142,9 @@
                         <div>
                             <label class="flex items-center justify-between text-sm text-slate-400 mb-1">
                                 <span>Temperature</span>
-                                <span id="temp-value" class="text-cyan-400">0.7</span>
+                                <span id="temp-value" class="text-cyan-400">0.4</span>
                             </label>
-                            <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7"
+                            <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.4"
                                    class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                         </div>
                         
@@ -152,9 +152,9 @@
                         <div>
                             <label class="flex items-center justify-between text-sm text-slate-400 mb-1">
                                 <span>Top K Chunks</span>
-                                <span id="topk-value" class="text-cyan-400">5</span>
+                                <span id="topk-value" class="text-cyan-400">10</span>
                             </label>
-                            <input type="range" id="top-k" min="1" max="10" step="1" value="5"
+                            <input type="range" id="top-k" min="1" max="15" step="1" value="10"
                                    class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                         </div>
                         
@@ -169,18 +169,20 @@
                             </button>
                         </div>
                         
-                        <!-- System Prompt -->
+                        <!-- 🔧 FIX: System Prompt moins restrictif -->
                         <div>
                             <label class="text-sm text-slate-400 mb-1 block">System Prompt</label>
-                            <textarea id="system-prompt" rows="4"
-                                      class="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-slate-200 resize-none focus:outline-none focus:border-blue-500">You are an expert Academic Researcher and Literature Review specialist. Your role is to:
-1. Analyze and synthesize information from research papers
-2. Identify key themes, methodologies, and findings
-3. Compare and contrast different papers' perspectives
-4. Generate structured, professional literature reviews
-5. Always cite the specific papers you reference
+                            <textarea id="system-prompt" rows="6"
+                                      class="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-slate-200 resize-none focus:outline-none focus:border-blue-500">You are a helpful research assistant analyzing scientific documents.
 
-Be precise, academic, and thorough in your analysis.</textarea>
+INSTRUCTIONS:
+1. Answer questions using the provided document context
+2. If relevant information is in the context, use it to give a detailed answer
+3. Quote or paraphrase from the documents when appropriate
+4. If you cannot find the answer in the context, say so clearly
+5. Cite which document the information comes from
+
+Be helpful, accurate and concise.</textarea>
                         </div>
                     </div>
                 </div>
@@ -302,13 +304,13 @@ Be precise, academic, and thorough in your analysis.</textarea>
         // CONFIGURATION & STATE
         // ============================================
         const CONFIG = {
-            CHUNK_SIZE: 500,
-            CHUNK_OVERLAP: 100,
+            CHUNK_SIZE: 1000,
+            CHUNK_OVERLAP: 250,
             EMBEDDING_MODEL: 'Xenova/all-MiniLM-L6-v2',
             WHISPER_MODEL: 'Xenova/whisper-tiny',
             LLM_MODEL: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
-            TOP_K: 5,
-            TEMPERATURE: 0.7,
+            TOP_K: 10,
+            TEMPERATURE: 0.4,  // 🔧 FIX: Reduced for more factual responses
             TTS_ENABLED: true,
             SELF_EVAL_ENABLED: true,
             STORAGE_KEY: 'lit-reviewer-metrics'
@@ -653,17 +655,14 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         // ============================================
         
         // Cosine Similarity - Optimized for normalized vectors (just dot product)
-        // Since we use normalize: true in embeddings, ||A|| = ||B|| = 1
         function cosineSimilarity(vecA, vecB) {
             const len = vecA.length;
             if (len !== vecB.length) return 0;
             
             let dot = 0;
-            // Unroll loop for better performance
             const remainder = len % 4;
             let i = 0;
             
-            // Process 4 elements at a time
             for (; i < len - remainder; i += 4) {
                 dot += vecA[i] * vecB[i] +
                        vecA[i+1] * vecB[i+1] +
@@ -671,7 +670,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                        vecA[i+3] * vecB[i+3];
             }
             
-            // Handle remaining elements
             for (; i < len; i++) {
                 dot += vecA[i] * vecB[i];
             }
@@ -693,7 +691,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 const end = Math.min(start + chunkSize, cleanText.length);
                 const chunk = cleanText.slice(start, end);
                 
-                if (chunk.trim().length > 50) { // Minimum meaningful chunk
+                if (chunk.trim().length > 50) {
                     chunks.push(chunk.trim());
                 }
                 
@@ -727,6 +725,242 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         }
 
         // ============================================
+        // 🔧 FIX #1: IMPROVED METADATA EXTRACTION
+        // ============================================
+        
+        function extractPaperMetadata(fullText, fileName) {
+            console.log('📊 Extracting metadata from:', fileName);
+            
+            const metadata = {
+                title: 'Unknown',
+                abstract: '',
+                introduction: '',
+                methods: '',
+                results: '',
+                firstContent: ''
+            };
+            
+            // Clean text for matching
+            const text = fullText.replace(/\s+/g, ' ').trim();
+            
+            // ===== TITLE EXTRACTION =====
+            const titlePatterns = [
+                // "CORONAVIRUS Cryo-EM structure..." pattern
+                /(?:RESEARCH|ARTICLE|LETTER|REPORT|CORONAVIRUS|REVIEW)\s+([A-Z][A-Za-z0-9\s\-:,()–]+?)(?:\s+[A-Z][a-z]+\s*\d*\s*[,\*†])/i,
+                // Title before "Abstract"
+                /^(.{20,200}?)(?:\s+Abstract\s)/i,
+                // First substantial capitalized text
+                /^[\s\S]{0,100}?([A-Z][A-Za-z0-9\s\-:,()–]{20,150}?)(?:\s+[A-Z][a-z]+\s+[A-Z])/
+            ];
+            
+            for (const pattern of titlePatterns) {
+                const match = text.substring(0, 1200).match(pattern);
+                if (match && match[1] && match[1].length > 15) {
+                    metadata.title = match[1].trim();
+                    console.log('✅ Found title:', metadata.title.substring(0, 60) + '...');
+                    break;
+                }
+            }
+            
+            // ===== ABSTRACT EXTRACTION =====
+            const abstractPatterns = [
+                // Explicit "Abstract:" label
+                /abstract\s*[:—\-]?\s*(.{100,2500}?)(?=\s*(?:introduction|keywords|1\.\s|I\.\s|background))/i,
+                // Papers without "Abstract" label - look for first substantial paragraph
+                /(?:^|[\.\n]\s*)((The|A|In|We|This|Recent|Novel)\s+(?:novel\s+)?(?:coronavirus|outbreak|study|paper|research|investigation)[^\.]{30,}(?:\.[^\.]{30,}){1,5})/i,
+                // Fallback: First paragraph starting with common scientific openers
+                /(?:^|\n\s*)((The|A|In|We|This)\s+[^\.]{40,}(?:\.[^\.]{25,}){2,6})/i
+            ];
+            
+            for (const pattern of abstractPatterns) {
+                const match = fullText.match(pattern);
+                if (match && match[1] && match[1].length > 100) {
+                    // Filter out reference sections
+                    const candidate = match[1].trim();
+                    if (!candidate.match(/^\d+\.\s+[A-Z]\./) && !candidate.match(/et\s+al\.,?\s+\d{4}/)) {
+                        metadata.abstract = candidate.replace(/\s+/g, ' ').substring(0, 2000);
+                        console.log('✅ Found abstract, length:', metadata.abstract.length);
+                        break;
+                    }
+                }
+            }
+            
+            // ===== INTRODUCTION EXTRACTION =====
+            const introMatch = fullText.match(/(?:introduction|1\.\s*introduction)[\s\n]*[:—\-]?\s*([\s\S]{100,2000}?)(?=\s*(?:methods|methodology|materials|2\.|II\.|results))/i);
+            if (introMatch) {
+                metadata.introduction = introMatch[1].trim().replace(/\s+/g, ' ').substring(0, 1500);
+                console.log('✅ Found introduction, length:', metadata.introduction.length);
+            }
+            
+            // ===== METHODS EXTRACTION =====
+            const methodsMatch = fullText.match(/(?:methods|methodology|materials and methods)[\s\n]*[:—\-]?\s*([\s\S]{100,1500}?)(?=\s*(?:results|discussion|3\.|III\.))/i);
+            if (methodsMatch) {
+                metadata.methods = methodsMatch[1].trim().replace(/\s+/g, ' ').substring(0, 1000);
+            }
+            
+            // ===== CRITICAL: FIRST CONTENT FALLBACK =====
+            // Skip references/junk and get actual content
+            const contentStart = fullText.search(/(?:abstract|The\s+(?:novel|outbreak|emergence)|We\s+(?:report|present|describe)|This\s+(?:study|paper|research))/i);
+            const startPos = contentStart > 0 ? contentStart : 0;
+            metadata.firstContent = fullText.substring(startPos, startPos + 3000).replace(/\s+/g, ' ').trim();
+            console.log('📝 First content captured, length:', metadata.firstContent.length);
+            
+            return metadata;
+        }
+        
+        // ============================================
+        // 🔧 FIX #2: IMPROVED OVERVIEW CHUNK
+        // ============================================
+        
+        function createOverviewChunk(metadata, fileName) {
+            const parts = [];
+            
+            // Header
+            parts.push(`# Document: ${metadata.title !== 'Unknown' ? metadata.title : fileName}`);
+            parts.push(`Source: ${fileName}`);
+            parts.push('');
+            
+            // Priority 1: Use abstract if found and substantial
+            if (metadata.abstract && metadata.abstract.length > 150) {
+                parts.push('## Abstract/Summary:');
+                parts.push(metadata.abstract);
+            }
+            // Priority 2: Use first content as fallback
+            else if (metadata.firstContent && metadata.firstContent.length > 150) {
+                parts.push('## Document Content:');
+                parts.push(metadata.firstContent.substring(0, 2000));
+            }
+            
+            // Add introduction if available and different from abstract
+            if (metadata.introduction && metadata.introduction.length > 100) {
+                // Check it's not duplicate of abstract
+                const introStart = metadata.introduction.substring(0, 100);
+                const abstractStart = metadata.abstract ? metadata.abstract.substring(0, 100) : '';
+                if (introStart !== abstractStart) {
+                    parts.push('');
+                    parts.push('## Introduction:');
+                    parts.push(metadata.introduction.substring(0, 1000));
+                }
+            }
+            
+            // Add methods summary if available
+            if (metadata.methods && metadata.methods.length > 100) {
+                parts.push('');
+                parts.push('## Methodology:');
+                parts.push(metadata.methods.substring(0, 600));
+            }
+            
+            const overview = parts.join('\n');
+            console.log('📋 Overview chunk created, length:', overview.length);
+            console.log('📋 Overview preview:', overview.substring(0, 400) + '...');
+            
+            return overview;
+        }
+        
+        // ============================================
+        // 🔧 FIX #3: IMPROVED GENERIC QUESTION DETECTION
+        // ============================================
+        
+        function isGenericPaperQuestion(query) {
+            const genericPatterns = [
+                // Direct questions about paper content
+                /^what (is|are) (this|the) (paper|document|study|research)/i,
+                /what (is|are) (this|the) (paper|document|study|research) (about|on)/i,
+                /^what'?s (this|the) (paper|document|study|article)/i,
+                
+                // Summarization requests
+                /summarize (this|the|these) (paper|document|study|research)/i,
+                /^summary/i,
+                /give me (a |an )?(overview|summary)/i,
+                
+                // Explanation requests
+                /explain (me )?(this|the) (paper|document|study)/i,
+                /^describe (this|the) (paper|document)/i,
+                /tell me about (this|the) (paper|document|study)/i,
+                
+                // Content questions
+                /what does (this|the) (paper|document|study) (say|discuss|cover|describe)/i,
+                /what is discussed/i,
+                /main (topic|subject|theme|point|finding|conclusion)/i,
+                
+                // Literature review
+                /^literature review/i,
+                /^abstract/i,
+                /^overview/i,
+                
+                // Vague references
+                /what is this about/i,
+                /^about what/i,
+                /^what is this\??$/i
+            ];
+            
+            const isGeneric = genericPatterns.some(pattern => pattern.test(query.trim()));
+            console.log('🔍 Query classification:', query, '→', isGeneric ? 'GENERIC' : 'SPECIFIC');
+            return isGeneric;
+        }
+        
+        // ============================================
+        // 🔧 FIX #4: IMPROVED SMART RETRIEVAL
+        // ============================================
+        
+        async function smartPaperRetrieval(userQuery, topK = 10) {
+            if (state.vectorStore.length === 0) {
+                console.log('⚠️ Vector store is empty!');
+                return [];
+            }
+            
+            const isGeneric = isGenericPaperQuestion(userQuery);
+            
+            console.log('🔍 Query type:', isGeneric ? 'GENERIC (overview)' : 'SPECIFIC');
+            
+            if (isGeneric) {
+                // Strategy for generic questions: prioritize OVERVIEW chunks
+                const overviewChunks = state.vectorStore
+                    .filter(c => c.type === 'OVERVIEW')
+                    .map(c => ({ ...c, similarity: 0.98 })); // High similarity to ensure they're used
+                
+                console.log('📄 Found', overviewChunks.length, 'overview chunks');
+                
+                // Also get first few regular chunks for additional context
+                const firstChunks = state.vectorStore
+                    .filter(c => c.type !== 'OVERVIEW')
+                    .slice(0, Math.min(5, topK - overviewChunks.length))
+                    .map(c => ({ ...c, similarity: 0.85 }));
+                
+                const combined = [...overviewChunks, ...firstChunks].slice(0, topK);
+                
+                if (combined.length > 0) {
+                    console.log('✅ Returning', combined.length, 'chunks for generic query');
+                    return combined;
+                }
+            }
+            
+            // Specific question: use semantic search
+            console.log('🎯 Using semantic search for specific question');
+            
+            // Enhance vague queries
+            let enhancedQuery = userQuery;
+            const vaguePatterns = [
+                /^what is this/i,
+                /^tell me about this/i,
+                /^summarize this/i,
+                /^what does this say/i,
+                /^explain this/i
+            ];
+            
+            if (vaguePatterns.some(p => p.test(userQuery))) {
+                enhancedQuery = userQuery + " document abstract introduction summary content main findings";
+                console.log('✨ Enhanced query:', enhancedQuery);
+            }
+            
+            const queryEmbedding = await generateEmbedding(enhancedQuery);
+            const results = searchVectorStore(queryEmbedding, topK);
+            
+            console.log('✅ Semantic search returned', results.length, 'chunks');
+            return results;
+        }
+
+        // ============================================
         // PDF EXTRACTION
         // ============================================
         async function extractTextFromPDF(file) {
@@ -744,7 +978,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         const pageText = textContent.items.map(item => item.str).join(' ');
                         fullText += pageText + '\n\n';
                         
-                        // Update progress
                         const progress = Math.round((i / pdf.numPages) * 50);
                         updateProcessingProgress(progress, `Extracting page ${i}/${pdf.numPages}...`);
                     }
@@ -760,7 +993,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         // EMBEDDING & VECTOR STORE
         // ============================================
         
-        // Generate embedding - returns Float32Array directly
         async function generateEmbedding(text) {
             if (!state.embeddingPipeline) {
                 throw new Error('Embedding model not loaded');
@@ -771,11 +1003,9 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 normalize: true
             });
             
-            // Keep as Float32Array for faster math operations
             return new Float32Array(result.data);
         }
         
-        // Batch generate embeddings for multiple texts
         async function generateEmbeddingsBatch(texts, batchSize = 8) {
             if (!state.embeddingPipeline) {
                 throw new Error('Embedding model not loaded');
@@ -786,7 +1016,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             for (let i = 0; i < texts.length; i += batchSize) {
                 const batch = texts.slice(i, Math.min(i + batchSize, texts.length));
                 
-                // Process batch in parallel
                 const batchResults = await Promise.all(
                     batch.map(text => state.embeddingPipeline(text, {
                         pooling: 'mean',
@@ -794,7 +1023,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     }))
                 );
                 
-                // Extract embeddings as Float32Array
                 for (const result of batchResults) {
                     embeddings.push(new Float32Array(result.data));
                 }
@@ -803,10 +1031,9 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             return embeddings;
         }
 
-        async function addToVectorStore(chunks, source) {
+        async function addToVectorStore(chunks, source, chunkType = 'NORMAL') {
             const totalChunks = chunks.length;
             
-            // Use batched embedding generation
             updateProcessingProgress(50, `Embedding ${totalChunks} chunks...`);
             
             const batchSize = 8;
@@ -814,17 +1041,16 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
                 const embeddings = await generateEmbeddingsBatch(batch, batchSize);
                 
-                // Add to store
                 for (let j = 0; j < batch.length; j++) {
                     state.vectorStore.push({
                         text: batch[j],
                         embedding: embeddings[j],
                         source: source,
-                        id: `${source}-${i + j}`
+                        type: chunkType,
+                        id: `${source}-${chunkType}-${i + j}`
                     });
                 }
                 
-                // Update progress
                 const progress = 50 + Math.round(((i + batch.length) / totalChunks) * 50);
                 updateProcessingProgress(progress, `Embedded ${Math.min(i + batchSize, totalChunks)}/${totalChunks} chunks...`);
             }
@@ -832,12 +1058,10 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             updateMemoryDisplay();
         }
 
-        // Optimized search with partial sort for top-K
         function searchVectorStore(queryEmbedding, topK = CONFIG.TOP_K) {
             const len = state.vectorStore.length;
             if (len === 0) return [];
             
-            // Calculate all similarities first
             const scored = new Array(len);
             for (let i = 0; i < len; i++) {
                 scored[i] = {
@@ -846,7 +1070,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 };
             }
             
-            // Partial sort - only find top K (more efficient than full sort)
+            // Partial sort for top K
             for (let i = 0; i < Math.min(topK, len); i++) {
                 let maxIdx = i;
                 for (let j = i + 1; j < len; j++) {
@@ -859,7 +1083,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 }
             }
             
-            // Return top K with full data
             return scored.slice(0, topK).map(s => ({
                 ...state.vectorStore[s.index],
                 similarity: s.similarity
@@ -875,11 +1098,9 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             document.getElementById('chunk-count').textContent = state.vectorStore.length;
             document.getElementById('vector-count').textContent = state.vectorStore.length;
             
-            // Estimate storage size
             const size = JSON.stringify(state.vectorStore).length;
             document.getElementById('storage-size').textContent = formatBytes(size);
             
-            // Update document list
             const docList = document.getElementById('document-list');
             if (uniqueDocs.size === 0) {
                 docList.innerHTML = '<p class="text-sm text-slate-500 italic">No documents loaded yet</p>';
@@ -985,7 +1206,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             container.innerHTML = chunks.map((chunk, i) => `
                 <div class="bg-slate-700/50 rounded p-2 text-xs">
                     <div class="flex items-center justify-between mb-1">
-                        <span class="text-blue-400 font-medium">${chunk.source}</span>
+                        <span class="text-blue-400 font-medium">${chunk.source} <span class="text-slate-500">(${chunk.type})</span></span>
                         <span class="text-slate-500">${(chunk.similarity * 100).toFixed(1)}% match</span>
                     </div>
                     <p class="text-slate-400 line-clamp-2">${chunk.text.substring(0, 150)}...</p>
@@ -1049,14 +1270,12 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             modelProgress.classList.remove('hidden');
             
             try {
-                // Load Transformers.js for embeddings
                 progressText.textContent = 'Loading Transformers.js...';
                 progressPercent.textContent = '5%';
                 progressBar.style.width = '5%';
                 
                 const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1');
                 
-                // Store pipeline factory for lazy loading Whisper later
                 state.pipelineFactory = pipeline;
                 
                 progressText.textContent = 'Loading embedding model...';
@@ -1073,13 +1292,10 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     }
                 });
                 
-                // Skip Whisper for now - will lazy load on first mic click
-                // This saves ~30% of initial load time
                 progressText.textContent = 'Whisper STT will load on first use...';
                 progressPercent.textContent = '40%';
                 progressBar.style.width = '40%';
                 
-                // Load WebLLM
                 progressText.textContent = 'Loading WebLLM...';
                 progressPercent.textContent = '45%';
                 progressBar.style.width = '45%';
@@ -1097,7 +1313,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     }
                 });
                 
-                // Success!
                 state.modelsLoaded = true;
                 modelIndicator.className = 'w-3 h-3 rounded-full bg-green-500';
                 modelText.textContent = 'Models ready!';
@@ -1105,7 +1320,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 modelProgress.classList.add('hidden');
                 loadBtn.classList.add('hidden');
                 
-                // Enable chat
                 document.getElementById('user-input').disabled = false;
                 document.getElementById('send-btn').disabled = false;
                 
@@ -1124,7 +1338,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             }
         }
         
-        // Lazy load Whisper when needed
         async function ensureWhisperLoaded() {
             if (state.whisperPipeline) return true;
             if (!state.pipelineFactory) return false;
@@ -1153,30 +1366,30 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             sendBtn.disabled = true;
             userInput.disabled = true;
             
-            // Initialize metrics for this query
             const queryId = 'q-' + Date.now();
             const queryStartTime = performance.now();
             let ttftMs = 0;
             let firstTokenReceived = false;
             let tokensGenerated = 0;
             
-            // Add user message
             addMessage('user', userMessage);
             state.chatHistory.push({ role: 'user', content: userMessage });
             
             showTypingIndicator();
             
             try {
-                // Get relevant context from vector store
                 let relevantChunks = [];
                 let contextText = '';
                 let retrievalMetrics = { topSimilarity: 0, avgSimilarity: 0, sourceDiversity: 0, searchTimeMs: 0 };
                 
                 if (state.vectorStore.length > 0) {
                     const searchStart = performance.now();
-                    const queryEmbedding = await generateEmbedding(userMessage);
+                    
                     const topK = parseInt(document.getElementById('top-k').value);
-                    relevantChunks = searchVectorStore(queryEmbedding, topK);
+                    
+                    // 🔧 FIX: Use improved smart retrieval
+                    relevantChunks = await smartPaperRetrieval(userMessage, topK);
+                    
                     retrievalMetrics.searchTimeMs = Math.round(performance.now() - searchStart);
                     
                     if (relevantChunks.length > 0) {
@@ -1185,32 +1398,34 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                             `[Source: ${chunk.source}]\n${chunk.text}`
                         ).join('\n\n---\n\n');
                         
-                        // Calculate retrieval metrics
                         retrievalMetrics.topSimilarity = relevantChunks[0].similarity;
                         retrievalMetrics.avgSimilarity = relevantChunks.reduce((sum, c) => sum + c.similarity, 0) / relevantChunks.length;
                         retrievalMetrics.sourceDiversity = new Set(relevantChunks.map(c => c.source)).size;
                     }
                 }
                 
-                // Build prompt
+                // 🔧 FIX: Debug logs
+                console.log('📄 Context sent to LLM:');
+                console.log(contextText.substring(0, 800) + '...');
+                console.log('📊 Context length:', contextText.length, 'characters');
+                
                 const systemPrompt = document.getElementById('system-prompt').value;
                 const temperature = parseFloat(document.getElementById('temperature').value);
                 
-                // Combine system prompt with context (WebLLM only allows ONE system message at the start)
                 let fullSystemPrompt = systemPrompt;
                 if (contextText) {
-                    fullSystemPrompt += `\n\n---\n\nHere are relevant excerpts from the uploaded research papers:\n\n${contextText}\n\nUse this context to answer the user's question. Always cite which paper/source you're referencing.`;
+                    fullSystemPrompt += `\n\n=== DOCUMENT CONTEXT START ===\n${contextText}\n=== DOCUMENT CONTEXT END ===\n\nAnswer the user's question based on the context above.`;
+                } else {
+                    fullSystemPrompt += '\n\nNote: No documents have been uploaded yet. Please upload PDF documents first.';
                 }
                 
                 let messages = [
                     { role: 'system', content: fullSystemPrompt }
                 ];
                 
-                // Add chat history (last 6 messages for context window management)
                 const recentHistory = state.chatHistory.slice(-6);
                 messages = messages.concat(recentHistory);
                 
-                // Generate response
                 const generationStart = performance.now();
                 const response = await state.llmEngine.chat.completions.create({
                     messages: messages,
@@ -1221,11 +1436,9 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 
                 hideTypingIndicator();
                 
-                // Stream the response
                 let fullResponse = '';
                 const chatMessages = document.getElementById('chat-messages');
                 
-                // Create message container with unique ID
                 const messageId = 'msg-' + Date.now();
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'flex gap-3';
@@ -1242,7 +1455,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 const streamingContent = document.getElementById(messageId);
                 
                 for await (const chunk of response) {
-                    // Track TTFT (Time To First Token)
                     if (!firstTokenReceived) {
                         ttftMs = Math.round(performance.now() - generationStart);
                         firstTokenReceived = true;
@@ -1259,7 +1471,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 const generationTimeMs = Math.round(performance.now() - generationStart);
                 const tokensPerSecond = generationTimeMs > 0 ? Math.round((tokensGenerated / generationTimeMs) * 1000) : 0;
                 
-                // Add sources and feedback buttons to the message
                 const uniqueSources = relevantChunks.length > 0 ? [...new Set(relevantChunks.map(s => s.source))] : [];
                 const sourcesHtml = uniqueSources.length > 0 ? `
                     <div class="mt-3 pt-3 border-t border-slate-600">
@@ -1276,7 +1487,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     </div>
                 ` : '';
                 
-                // Add feedback buttons
                 const feedbackHtml = `
                     <div class="mt-3 pt-3 border-t border-slate-600 flex items-center justify-between">
                         <div class="text-xs text-slate-500">
@@ -1298,10 +1508,8 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 messageDiv.querySelector('.prose').innerHTML += sourcesHtml + feedbackHtml;
                 streamingContent.removeAttribute('id');
                 
-                // Add to history
                 state.chatHistory.push({ role: 'assistant', content: fullResponse });
                 
-                // Track with advanced analytics
                 const advancedMetrics = state.analytics.trackQuery({
                     query: userMessage,
                     response: fullResponse,
@@ -1316,7 +1524,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 
                 console.log('📊 Advanced Metrics:', advancedMetrics);
                 
-                // Store query metrics with advanced analytics
                 const queryMetrics = {
                     id: queryId,
                     timestamp: Date.now(),
@@ -1331,23 +1538,16 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         throughput: advancedMetrics.throughput
                     },
                     advanced: {
-                        // Generation Quality
                         responseLength: advancedMetrics.responseLength,
                         distinct1: advancedMetrics.diversity.distinct1,
                         distinct2: advancedMetrics.diversity.distinct2,
                         repetition: advancedMetrics.repetition,
-                        
-                        // RAG Metrics
                         contextUtilization: advancedMetrics.contextUtilization,
                         answerGrounding: advancedMetrics.answerGrounding,
                         citationCoverage: advancedMetrics.citationCoverage,
                         retrievalPrecision: advancedMetrics.retrievalPrecision,
-                        
-                        // Engagement
                         queryComplexity: advancedMetrics.queryComplexity.complexity,
                         queryType: advancedMetrics.queryType,
-                        
-                        // Quality
                         hallucinationScore: advancedMetrics.hallucinationScore,
                         completeness: advancedMetrics.completeness,
                         sourceDiversity: advancedMetrics.sourceDiversity
@@ -1357,13 +1557,10 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 };
                 state.queriesMetrics.push(queryMetrics);
                 
-                // Save to Firebase (or localStorage fallback)
                 saveQueryMetrics(queryMetrics);
                 
-                // Run self-evaluation in background (don't await)
                 runSelfEvaluation(queryId, userMessage, contextText, fullResponse);
                 
-                // TTS if enabled (using browser's SpeechSynthesis)
                 if (CONFIG.TTS_ENABLED && window.speechSynthesis && fullResponse.length < 800) {
                     window.speechSynthesis.cancel();
                     const cleanText = fullResponse
@@ -1390,11 +1587,9 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             userInput.focus();
         }
         
-        // Expose recordFeedback to window for onclick handlers
         window.recordFeedback = function(queryId, vote) {
             recordFeedback(queryId, vote);
             
-            // Update UI to show feedback was recorded
             const feedbackDiv = document.getElementById(`feedback-${queryId}`);
             if (feedbackDiv) {
                 const isUp = vote === 'up';
@@ -1411,13 +1606,10 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         // EVENT LISTENERS
         // ============================================
         document.addEventListener('DOMContentLoaded', async () => {
-            // Initialize metrics storage (don't wait, let it run in background)
             initMetricsStorage().catch(e => console.warn('Metrics init:', e));
             
-            // Check WebGPU
             await checkWebGPU();
             
-            // File upload
             const dropZone = document.getElementById('drop-zone');
             const fileInput = document.getElementById('file-input');
             
@@ -1460,27 +1652,43 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     try {
                         updateProcessingProgress(0, `Processing ${file.name}...`);
                         
-                        // Extract text
                         const text = await extractTextFromPDF(file);
+                        
+                        console.log('📄 Extracted text length:', text.length);
+                        console.log('📄 First 500 chars:', text.substring(0, 500));
                         
                         if (text.trim().length < 100) {
                             addMessage('assistant', `⚠️ Could not extract meaningful text from ${file.name}. The PDF might be image-based.`);
                             continue;
                         }
                         
-                        // Chunk text
+                        // 🔧 FIX: Use improved metadata extraction
+                        console.log('📊 Extracting paper metadata...');
+                        const metadata = extractPaperMetadata(text, file.name);
+                        console.log('✅ Metadata title:', metadata.title);
+                        
+                        // 🔧 FIX: Use improved overview chunk creation
+                        updateProcessingProgress(20, 'Creating document overview...');
+                        const overviewChunk = createOverviewChunk(metadata, file.name);
+                        
+                        // Add overview chunk FIRST
+                        await addToVectorStore([overviewChunk], file.name, 'OVERVIEW');
+                        
+                        updateProcessingProgress(30, 'Creating text chunks...');
                         const chunks = chunkText(text);
                         
-                        // Add to vector store
-                        await addToVectorStore(chunks, file.name);
+                        await addToVectorStore(chunks, file.name, 'NORMAL');
                         
                         state.documents.push({
                             name: file.name,
-                            chunkCount: chunks.length,
-                            textLength: text.length
+                            title: metadata.title,
+                            chunkCount: chunks.length + 1,
+                            textLength: text.length,
+                            hasOverview: true
                         });
                         
-                        addMessage('assistant', `✅ Successfully processed **${file.name}**\n- Extracted ${text.length.toLocaleString()} characters\n- Created ${chunks.length} chunks\n- Generated ${chunks.length} embeddings`);
+                        const totalChunks = chunks.length + 1;
+                        addMessage('assistant', `✅ Successfully processed **${file.name}**\n- Title: ${metadata.title}\n- Extracted ${text.length.toLocaleString()} characters\n- Created ${totalChunks} chunks (1 overview + ${chunks.length} content)\n- Generated ${totalChunks} embeddings\n\n*Try asking: "What is this paper about?"*`);
                         
                     } catch (error) {
                         console.error(`Error processing ${file.name}:`, error);
@@ -1492,14 +1700,12 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 state.isProcessing = false;
             }
             
-            // Load models button
             document.getElementById('load-models-btn').addEventListener('click', loadModels);
             
-            // AUTO-LOAD: Start loading models immediately
+            // AUTO-LOAD models
             console.log('🚀 Auto-loading models...');
             loadModels();
             
-            // Clear memory
             document.getElementById('clear-memory').addEventListener('click', () => {
                 state.vectorStore = [];
                 state.documents = [];
@@ -1507,19 +1713,16 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 addMessage('assistant', '🗑️ Memory cleared. All documents have been removed.');
             });
             
-            // Temperature slider
             document.getElementById('temperature').addEventListener('input', (e) => {
                 document.getElementById('temp-value').textContent = e.target.value;
                 CONFIG.TEMPERATURE = parseFloat(e.target.value);
             });
             
-            // Top K slider
             document.getElementById('top-k').addEventListener('input', (e) => {
                 document.getElementById('topk-value').textContent = e.target.value;
                 CONFIG.TOP_K = parseInt(e.target.value);
             });
             
-            // TTS Toggle
             const ttsToggle = document.getElementById('tts-toggle');
             ttsToggle.addEventListener('click', () => {
                 CONFIG.TTS_ENABLED = !CONFIG.TTS_ENABLED;
@@ -1532,11 +1735,10 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     ttsToggle.classList.remove('bg-green-600');
                     ttsToggle.classList.add('bg-slate-600');
                     toggleKnob.classList.remove('translate-x-6');
-                    window.speechSynthesis.cancel(); // Stop any ongoing speech
+                    window.speechSynthesis.cancel();
                 }
             });
             
-            // Chat input
             const userInput = document.getElementById('user-input');
             const sendBtn = document.getElementById('send-btn');
             
@@ -1563,33 +1765,11 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 }
             });
             
-            // Close context panel
             document.getElementById('close-context').addEventListener('click', () => {
                 document.getElementById('context-panel').classList.add('hidden');
             });
             
-            // TTS Function - Read response aloud
-            function speakText(text) {
-                if (!CONFIG.TTS_ENABLED || !window.speechSynthesis) return;
-                
-                // Cancel any ongoing speech
-                window.speechSynthesis.cancel();
-                
-                // Clean text for speech (remove markdown)
-                const cleanText = text
-                    .replace(/\*\*/g, '')
-                    .replace(/\*/g, '')
-                    .replace(/#{1,3}\s/g, '')
-                    .replace(/`/g, '')
-                    .substring(0, 500); // Limit length
-                
-                const utterance = new SpeechSynthesisUtterance(cleanText);
-                utterance.rate = 1.0;
-                utterance.pitch = 1.0;
-                window.speechSynthesis.speak(utterance);
-            }
-            
-            // Voice input with Whisper STT
+            // Voice input
             const voiceBtn = document.getElementById('voice-btn');
             const voiceIndicator = document.getElementById('voice-indicator');
             let mediaRecorder = null;
@@ -1602,17 +1782,13 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     return;
                 }
                 
-                if (state.isTranscribing) {
-                    return; // Already transcribing
-                }
+                if (state.isTranscribing) return;
                 
-                // If recording, stop and transcribe
                 if (isRecording && mediaRecorder) {
                     mediaRecorder.stop();
                     return;
                 }
                 
-                // Lazy load Whisper on first use
                 if (!state.whisperPipeline) {
                     voiceBtn.disabled = true;
                     const loaded = await ensureWhisperLoaded();
@@ -1620,13 +1796,9 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     if (!loaded) return;
                 }
                 
-                // Start recording
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: {
-                            sampleRate: 16000,
-                            channelCount: 1
-                        }
+                        audio: { sampleRate: 16000, channelCount: 1 }
                     });
                     
                     mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
@@ -1634,9 +1806,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     isRecording = true;
                     
                     mediaRecorder.ondataavailable = (e) => {
-                        if (e.data.size > 0) {
-                            audioChunks.push(e.data);
-                        }
+                        if (e.data.size > 0) audioChunks.push(e.data);
                     };
                     
                     mediaRecorder.onstop = async () => {
@@ -1648,18 +1818,13 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         state.isTranscribing = true;
                         
                         try {
-                            // Convert to blob
                             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                            
-                            // Convert blob to audio buffer using Web Audio API
                             const audioContext = new AudioContext({ sampleRate: 16000 });
                             const arrayBuffer = await audioBlob.arrayBuffer();
                             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
                             
-                            // Get Float32Array from the audio buffer (mono, 16kHz)
                             let audioData;
                             if (audioBuffer.numberOfChannels > 1) {
-                                // Mix stereo to mono
                                 const left = audioBuffer.getChannelData(0);
                                 const right = audioBuffer.getChannelData(1);
                                 audioData = new Float32Array(left.length);
@@ -1670,22 +1835,19 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                                 audioData = audioBuffer.getChannelData(0);
                             }
                             
-                            // Resample to 16kHz if needed
                             const targetSampleRate = 16000;
                             if (audioBuffer.sampleRate !== targetSampleRate) {
                                 const ratio = audioBuffer.sampleRate / targetSampleRate;
                                 const newLength = Math.round(audioData.length / ratio);
                                 const resampled = new Float32Array(newLength);
                                 for (let i = 0; i < newLength; i++) {
-                                    const srcIdx = Math.floor(i * ratio);
-                                    resampled[i] = audioData[srcIdx];
+                                    resampled[i] = audioData[Math.floor(i * ratio)];
                                 }
                                 audioData = resampled;
                             }
                             
                             await audioContext.close();
                             
-                            // Transcribe with Whisper (English)
                             if (state.whisperPipeline) {
                                 const result = await state.whisperPipeline(audioData, {
                                     language: 'english',
@@ -1698,12 +1860,10 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                                 state.isTranscribing = false;
                                 
                                 if (transcription && transcription.length > 0) {
-                                    // Put transcription in input field
                                     const userInput = document.getElementById('user-input');
                                     userInput.value = transcription;
                                     document.getElementById('char-count').textContent = `${transcription.length} / 2000`;
                                     
-                                    // Auto-send the message
                                     handleChat(transcription);
                                     userInput.value = '';
                                     document.getElementById('char-count').textContent = '0 / 2000';
@@ -1725,7 +1885,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     voiceIndicator.querySelector('span').textContent = 'Listening...';
                     voiceBtn.classList.add('text-red-500');
                     
-                    // Auto-stop after 15 seconds
                     setTimeout(() => {
                         if (mediaRecorder && mediaRecorder.state === 'recording') {
                             mediaRecorder.stop();
