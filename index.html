@@ -289,6 +289,16 @@ Be precise, academic, and thorough in your analysis.</textarea>
     <!-- Scripts -->
     <script type="module">
         // ============================================
+        // IMPORTS
+        // ============================================
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-app.js";
+        import { getDatabase, ref, push, set, update, onValue, get } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-database.js";
+        
+        // Import advanced analytics library
+        // Note: Make sure analytics.js is in the same directory
+        import { AdvancedAnalytics } from './analytics.js';
+        
+        // ============================================
         // CONFIGURATION & STATE
         // ============================================
         const CONFIG = {
@@ -320,15 +330,13 @@ Be precise, academic, and thorough in your analysis.</textarea>
             sessionId: crypto.randomUUID(),
             sessionStartTime: Date.now(),
             currentQueryMetrics: null,
-            queriesMetrics: []
+            queriesMetrics: [],
+            analytics: new AdvancedAnalytics()  // Advanced metrics tracking
         };
 
         // ============================================
         // FIREBASE CONFIGURATION
         // ============================================
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-app.js";
-        import { getDatabase, ref, push, set, update, onValue, get } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-database.js";
-        
         const firebaseConfig = {
             apiKey: "AIzaSyAF7oeRHdlr9HjMWg0exrCA35ziSXbH06E",
             authDomain: "aicgllm.firebaseapp.com",
@@ -1026,6 +1034,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         }
 
         async function loadModels() {
+            const modelLoadStart = performance.now();
             const modelStatus = document.getElementById('model-status');
             const modelIndicator = document.getElementById('model-indicator');
             const modelText = document.getElementById('model-text');
@@ -1292,7 +1301,22 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 // Add to history
                 state.chatHistory.push({ role: 'assistant', content: fullResponse });
                 
-                // Store query metrics
+                // Track with advanced analytics
+                const advancedMetrics = state.analytics.trackQuery({
+                    query: userMessage,
+                    response: fullResponse,
+                    sources: uniqueSources.map(s => ({ source: s })),
+                    contextChunks: relevantChunks,
+                    ttftMs: ttftMs,
+                    totalTimeMs: totalTimeMs,
+                    tokensGenerated: tokensGenerated,
+                    topSimilarity: retrievalMetrics.topSimilarity,
+                    avgSimilarity: retrievalMetrics.avgSimilarity
+                });
+                
+                console.log('📊 Advanced Metrics:', advancedMetrics);
+                
+                // Store query metrics with advanced analytics
                 const queryMetrics = {
                     id: queryId,
                     timestamp: Date.now(),
@@ -1303,7 +1327,30 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         totalTimeMs,
                         generationTimeMs,
                         tokensGenerated,
-                        tokensPerSecond
+                        tokensPerSecond,
+                        throughput: advancedMetrics.throughput
+                    },
+                    advanced: {
+                        // Generation Quality
+                        responseLength: advancedMetrics.responseLength,
+                        distinct1: advancedMetrics.diversity.distinct1,
+                        distinct2: advancedMetrics.diversity.distinct2,
+                        repetition: advancedMetrics.repetition,
+                        
+                        // RAG Metrics
+                        contextUtilization: advancedMetrics.contextUtilization,
+                        answerGrounding: advancedMetrics.answerGrounding,
+                        citationCoverage: advancedMetrics.citationCoverage,
+                        retrievalPrecision: advancedMetrics.retrievalPrecision,
+                        
+                        // Engagement
+                        queryComplexity: advancedMetrics.queryComplexity.complexity,
+                        queryType: advancedMetrics.queryType,
+                        
+                        // Quality
+                        hallucinationScore: advancedMetrics.hallucinationScore,
+                        completeness: advancedMetrics.completeness,
+                        sourceDiversity: advancedMetrics.sourceDiversity
                     },
                     feedback: null,
                     selfEval: null
