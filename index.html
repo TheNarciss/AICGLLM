@@ -336,6 +336,76 @@ Be helpful, accurate and concise.</textarea>
             analytics: new AdvancedAnalytics()  // Advanced metrics tracking
         };
 
+        // Initialize analytics worker for heavy metric computation (keeps UI thread responsive)
+        // Worker runs locally in the browser and posts back computed `advanced` metrics.
+        let analyticsWorker = null;
+        try {
+            analyticsWorker = new Worker('analytics.worker.js', { type: 'module' });
+            analyticsWorker.onmessage = async (ev) => {
+                const { id, advanced, error } = ev.data || {};
+                if (error) {
+                    console.error('Analytics worker error for', id, error);
+                    return;
+                }
+                if (!id) return;
+
+                // Update in-memory state
+                const q = state.queriesMetrics.find(x => x.id === id);
+                if (q) {
+                    q.advanced = Object.assign({}, q.advanced || {}, advanced);
+                }
+
+                // Persist advanced metrics to Firebase or localStorage
+                try {
+                    if (firebaseSessionRef) {
+                        const advRef = ref(database, `sessions/${firebaseSessionRef.key}/queries/${id}/advanced`);
+                        await set(advRef, advanced);
+                    } else if (q) {
+                        // update local copy and localStorage
+                        saveToLocalStorage(q);
+                    }
+                } catch (e) {
+                    console.error('Failed to persist advanced metrics:', e);
+                }
+            };
+        } catch (e) {
+            console.warn('Could not create analytics worker:', e.message);
+            analyticsWorker = null;
+        }
+
+        // Initialize embeddings worker to offload embedding computation (optional)
+        let embeddingsWorker = null;
+        let embeddingsWorkerReady = false;
+        try {
+            embeddingsWorker = new Worker('embeddings.worker.js', { type: 'module' });
+            embeddingsWorker.onmessage = (ev) => {
+                const msg = ev.data || {};
+                if (msg.action === 'inited') {
+                    embeddingsWorkerReady = true;
+                    console.log('Embeddings worker initialized for model', msg.model);
+                } else if (msg.action === 'initProgress') {
+                    // ignore or log
+                    // console.log('Embeddings worker progress', msg.progress);
+                } else if (msg.action === 'embedResult') {
+                    const { id, buffers, dims } = msg;
+                    const resolver = _pendingEmbedResolvers[id];
+                    if (resolver) {
+                        // reconstruct Float32Array arrays
+                        const arrs = buffers.map(b => new Float32Array(b));
+                        resolver.resolve({ arrs, dims });
+                        delete _pendingEmbedResolvers[id];
+                    }
+                } else if (msg.action === 'error') {
+                    console.error('Embeddings worker error:', msg.message);
+                }
+            };
+        } catch (e) {
+            console.warn('Could not create embeddings worker:', e.message);
+            embeddingsWorker = null;
+        }
+
+        const _pendingEmbedResolvers = {};
+
         // ============================================
         // FIREBASE CONFIGURATION
         // ============================================
@@ -965,6 +1035,8 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         // ============================================
         async function extractTextFromPDF(file) {
             return new Promise(async (resolve, reject) => {
+                console.time(`extract:${file.name}`);
+                const extractStart = performance.now();
                 try {
                     const arrayBuffer = await file.arrayBuffer();
                     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -982,8 +1054,12 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         updateProcessingProgress(progress, `Extracting page ${i}/${pdf.numPages}...`);
                     }
                     
-                    resolve(fullText.trim());
+                    const extracted = fullText.trim();
+                    console.timeEnd(`extract:${file.name}`);
+                    console.log(`extract:${file.name} duration ms:`, Math.round(performance.now() - extractStart));
+                    resolve(extracted);
                 } catch (error) {
+                    console.timeEnd(`extract:${file.name}`);
                     reject(error);
                 }
             });
@@ -1006,41 +1082,84 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             return new Float32Array(result.data);
         }
         
-        async function generateEmbeddingsBatch(texts, batchSize = 8) {
+        async function generateEmbeddingsBatch(texts, batchSize = 16) {
+            // Prefer using embeddingsWorker if available to avoid blocking main thread.
+            if (embeddingsWorker) {
+                // Post batch to worker and await result
+                const id = 'embed-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+                return new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        delete _pendingEmbedResolvers[id];
+                        reject(new Error('Embeddings worker timeout'));
+                    }, 120000); // 2 minutes timeout
+
+                    _pendingEmbedResolvers[id] = {
+                        resolve: ({ arrs }) => {
+                            clearTimeout(timeout);
+                            resolve(arrs);
+                        },
+                        reject
+                    };
+
+                    try {
+                        embeddingsWorker.postMessage({ action: 'embedBatch', id, texts });
+                    } catch (e) {
+                        clearTimeout(timeout);
+                        delete _pendingEmbedResolvers[id];
+                        reject(e);
+                    }
+                });
+            }
+
             if (!state.embeddingPipeline) {
                 throw new Error('Embedding model not loaded');
             }
-            
+
             const embeddings = [];
-            
+
+            console.time('generateEmbeddingsBatch');
+            const batchOverallStart = performance.now();
             for (let i = 0; i < texts.length; i += batchSize) {
                 const batch = texts.slice(i, Math.min(i + batchSize, texts.length));
-                
+                console.time(`embed-batch-${i}`);
+                const batchStart = performance.now();
+
                 const batchResults = await Promise.all(
                     batch.map(text => state.embeddingPipeline(text, {
                         pooling: 'mean',
                         normalize: true
                     }))
                 );
-                
+
                 for (const result of batchResults) {
                     embeddings.push(new Float32Array(result.data));
                 }
+
+                console.timeEnd(`embed-batch-${i}`);
+                console.log(`embed-batch-${i} duration ms:`, Math.round(performance.now() - batchStart));
             }
-            
+            console.timeEnd('generateEmbeddingsBatch');
+            console.log('generateEmbeddingsBatch total ms:', Math.round(performance.now() - batchOverallStart));
+
             return embeddings;
         }
 
         async function addToVectorStore(chunks, source, chunkType = 'NORMAL') {
             const totalChunks = chunks.length;
-            
+
+            console.time(`addToVectorStore:${source}:${chunkType}`);
+            const startAll = performance.now();
             updateProcessingProgress(50, `Embedding ${totalChunks} chunks...`);
-            
-            const batchSize = 8;
+
+            const batchSize = 16;
             for (let i = 0; i < chunks.length; i += batchSize) {
                 const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
+                const batchLabel = `${source}:${chunkType}:batch:${i}`;
+                console.time(batchLabel);
+                const batchStart = performance.now();
+
                 const embeddings = await generateEmbeddingsBatch(batch, batchSize);
-                
+
                 for (let j = 0; j < batch.length; j++) {
                     state.vectorStore.push({
                         text: batch[j],
@@ -1050,12 +1169,17 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         id: `${source}-${chunkType}-${i + j}`
                     });
                 }
-                
+
+                console.timeEnd(batchLabel);
+                console.log(`${batchLabel} duration ms:`, Math.round(performance.now() - batchStart));
+
                 const progress = 50 + Math.round(((i + batch.length) / totalChunks) * 50);
                 updateProcessingProgress(progress, `Embedded ${Math.min(i + batchSize, totalChunks)}/${totalChunks} chunks...`);
             }
-            
+
             updateMemoryDisplay();
+            console.timeEnd(`addToVectorStore:${source}:${chunkType}`);
+            console.log(`addToVectorStore ${source} ${chunkType} total ms:`, Math.round(performance.now() - startAll));
         }
 
         function searchVectorStore(queryEmbedding, topK = CONFIG.TOP_K) {
@@ -1291,6 +1415,15 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         }
                     }
                 });
+
+                // Initialize embeddings worker with same model (non-blocking)
+                try {
+                    if (embeddingsWorker) {
+                        embeddingsWorker.postMessage({ action: 'init', model: CONFIG.EMBEDDING_MODEL });
+                    }
+                } catch (e) {
+                    console.warn('Failed to init embeddings worker:', e.message);
+                }
                 
                 progressText.textContent = 'Whisper STT will load on first use...';
                 progressPercent.textContent = '40%';
@@ -1558,7 +1691,30 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 state.queriesMetrics.push(queryMetrics);
                 
                 saveQueryMetrics(queryMetrics);
-                
+
+                // Offload full advanced analytics computation to worker (non-blocking)
+                if (analyticsWorker) {
+                    try {
+                        analyticsWorker.postMessage({
+                            action: 'computeAdvanced',
+                            payload: {
+                                id: queryId,
+                                query: userMessage,
+                                response: fullResponse,
+                                sources: uniqueSources.map(s => ({ source: s })),
+                                contextChunks: relevantChunks,
+                                generation: {
+                                    totalTimeMs,
+                                    tokensGenerated
+                                },
+                                retrieval: retrievalMetrics
+                            }
+                        });
+                    } catch (e) {
+                        console.warn('Failed to post to analytics worker:', e.message);
+                    }
+                }
+
                 runSelfEvaluation(queryId, userMessage, contextText, fullResponse);
                 
                 if (CONFIG.TTS_ENABLED && window.speechSynthesis && fullResponse.length < 800) {
@@ -1651,7 +1807,9 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 for (const file of files) {
                     try {
                         updateProcessingProgress(0, `Processing ${file.name}...`);
-                        
+                        console.time(`process:${file.name}`);
+                        const processStart = performance.now();
+
                         const text = await extractTextFromPDF(file);
                         
                         console.log('📄 Extracted text length:', text.length);
@@ -1664,18 +1822,24 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         
                         // 🔧 FIX: Use improved metadata extraction
                         console.log('📊 Extracting paper metadata...');
+                        console.time(`metadata:${file.name}`);
                         const metadata = extractPaperMetadata(text, file.name);
+                        console.timeEnd(`metadata:${file.name}`);
                         console.log('✅ Metadata title:', metadata.title);
                         
                         // 🔧 FIX: Use improved overview chunk creation
                         updateProcessingProgress(20, 'Creating document overview...');
+                        console.time(`overview:${file.name}`);
                         const overviewChunk = createOverviewChunk(metadata, file.name);
+                        console.timeEnd(`overview:${file.name}`);
                         
                         // Add overview chunk FIRST
                         await addToVectorStore([overviewChunk], file.name, 'OVERVIEW');
                         
                         updateProcessingProgress(30, 'Creating text chunks...');
+                        console.time(`chunking:${file.name}`);
                         const chunks = chunkText(text);
+                        console.timeEnd(`chunking:${file.name}`);
                         
                         await addToVectorStore(chunks, file.name, 'NORMAL');
                         
@@ -1688,6 +1852,8 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         });
                         
                         const totalChunks = chunks.length + 1;
+                        console.timeEnd(`process:${file.name}`);
+                        console.log(`process:${file.name} total ms:`, Math.round(performance.now() - processStart));
                         addMessage('assistant', `✅ Successfully processed **${file.name}**\n- Title: ${metadata.title}\n- Extracted ${text.length.toLocaleString()} characters\n- Created ${totalChunks} chunks (1 overview + ${chunks.length} content)\n- Generated ${totalChunks} embeddings\n\n*Try asking: "What is this paper about?"*`);
                         
                     } catch (error) {
