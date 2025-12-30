@@ -412,7 +412,7 @@ NEVER hallucinate facts, dates, statistics, or claims not explicitly in the cont
             // Models - UPGRADED to 3B for better responses
             EMBEDDING_MODEL: 'Xenova/all-MiniLM-L6-v2',
             WHISPER_MODEL: 'Xenova/whisper-tiny',
-            LLM_MODEL: 'Llama-3.2-3B-Instruct-q4f16_1-MLC',  // Upgraded from 1B to 3B
+            LLM_MODEL: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',  // Upgraded from 1B to 3B
             LLM_MODEL_FALLBACK: 'Llama-3.2-1B-Instruct-q4f16_1-MLC', // Fallback if 3B fails
             
             // RAG - Hybrid Search
@@ -1186,48 +1186,124 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         }
 
         // ============================================
+        // SMART QUERY CLASSIFICATION (Embedding-based)
+        // ============================================
+        
+        // Generic question templates (multilingual)
+        const GENERIC_TEMPLATES = [
+            // English - Summary/Overview
+            "summarize this document",
+            "what is this paper about",
+            "give me an overview",
+            "what is the main topic",
+            "explain this document",
+            "what does this paper discuss",
+            "tell me about this paper",
+            "what are the key points",
+            "summary of the document",
+            "describe this paper",
+            "what is the content",
+            "main ideas of this document",
+            // French - Résumé/Vue d'ensemble
+            "résume ce document",
+            "de quoi parle ce document",
+            "c'est quoi ce document",
+            "explique moi ce document",
+            "quel est le sujet principal",
+            "donne moi une vue d'ensemble",
+            "quels sont les points clés",
+            "décris ce document",
+            "synthèse du document",
+            "contenu principal",
+        ];
+        
+        // Cache for template embeddings
+        let genericTemplateEmbeddings = null;
+        
+        async function initQueryClassifier() {
+            if (!state.embeddingPipeline || genericTemplateEmbeddings) return;
+            
+            console.log('🧠 Initializing query classifier...');
+            const startTime = performance.now();
+            
+            genericTemplateEmbeddings = [];
+            for (const template of GENERIC_TEMPLATES) {
+                const embedding = await generateEmbedding(template);
+                genericTemplateEmbeddings.push(embedding);
+            }
+            
+            console.log(`✅ Query classifier ready (${GENERIC_TEMPLATES.length} templates, ${(performance.now() - startTime).toFixed(0)}ms)`);
+        }
+        
+        async function classifyQuery(query) {
+            // Fallback if classifier not ready
+            if (!genericTemplateEmbeddings || genericTemplateEmbeddings.length === 0) {
+                return { isGeneric: isGenericPaperQuestionFallback(query), confidence: 0, method: 'fallback' };
+            }
+            
+            // Get query embedding
+            const queryEmbedding = await generateEmbedding(query);
+            
+            // Find max similarity with generic templates
+            let maxSimilarity = 0;
+            let bestTemplate = '';
+            
+            for (let i = 0; i < genericTemplateEmbeddings.length; i++) {
+                const similarity = cosineSimilarity(queryEmbedding, genericTemplateEmbeddings[i]);
+                if (similarity > maxSimilarity) {
+                    maxSimilarity = similarity;
+                    bestTemplate = GENERIC_TEMPLATES[i];
+                }
+            }
+            
+            // Threshold: 0.6 = pretty similar to a generic question
+            const isGeneric = maxSimilarity > 0.6;
+            
+            console.log(`🎯 Query classification: ${isGeneric ? 'GENERIC' : 'SPECIFIC'} (similarity: ${(maxSimilarity * 100).toFixed(1)}% with "${bestTemplate}")`);
+            
+            return { isGeneric, confidence: maxSimilarity, bestMatch: bestTemplate, method: 'embedding' };
+        }
+        
+        // Fallback regex-based detection (used before embeddings are ready)
+        function isGenericPaperQuestionFallback(query) {
+            const q = query.toLowerCase().trim();
+            const patterns = [
+                /summarize/i, /summary/i, /overview/i, /abstract/i,
+                /what.*(is|are).*(this|the).*(paper|document|pdf)/i,
+                /tell.*about/i, /describe/i, /explain.*this/i,
+                /main.*(topic|point|idea)/i, /key.*points/i,
+                /résumé/i, /résumer/i, /synthèse/i,
+                /de.*quoi.*parle/i, /c'?est.*quoi/i,
+                /sujet.*principal/i, /vue.*d'?ensemble/i,
+            ];
+            return patterns.some(p => p.test(q));
+        }
+        
+        // ============================================
         // HYBRID SEARCH (Semantic + Keyword + RRF)
         // ============================================
         
-        function isGenericPaperQuestion(query) {
-            const genericPatterns = [
-                /^what (is|are) (this|the) (paper|document|study|research)/i,
-                /what (is|are) (this|the) (paper|document|study|research) (about|on)/i,
-                /^what'?s (this|the) (paper|document|study|article)/i,
-                /summarize (this|the|these) (paper|document|study|research)/i,
-                /^summary/i,
-                /give me (a |an )?(overview|summary)/i,
-                /explain (me )?(this|the) (paper|document|study)/i,
-                /^describe (this|the) (paper|document)/i,
-                /tell me about (this|the) (paper|document|study)/i,
-                /what does (this|the) (paper|document|study) (say|discuss|cover|describe)/i,
-                /what is discussed/i,
-                /main (topic|subject|theme|point|finding|conclusion)/i,
-                /^literature review/i,
-                /^abstract/i,
-                /^overview/i,
-                /what is this about/i,
-                /^about what/i,
-                /^what is this\??$/i
-            ];
-            
-            return genericPatterns.some(pattern => pattern.test(query.trim()));
-        }
-        
-        // Keyword-based search (BM25-like scoring)
+        // Keyword-based search (BM25-like scoring) - Multilingual
         function keywordSearch(query, topK = 15) {
             const stopwords = new Set([
+                // English
                 'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
                 'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
                 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
                 'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need',
                 'this', 'that', 'these', 'those', 'what', 'which', 'who', 'whom',
-                'paper', 'document', 'study', 'research', 'about'
+                'paper', 'document', 'study', 'research', 'about', 'please', 'give',
+                'complete', 'full', 'detailed',
+                // French
+                'le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'et', 'ou', 'mais',
+                'dans', 'sur', 'pour', 'par', 'avec', 'est', 'sont', 'être', 'avoir',
+                'ce', 'cette', 'ces', 'qui', 'que', 'quoi', 'dont', 'où', 'fait',
+                'faire', 'peut', 'peuvent', 'doit', 'doivent', 'tout', 'tous', 'toute'
             ]);
             
             // Extract query terms
             const queryTerms = query.toLowerCase()
-                .split(/[^a-z0-9]+/)
+                .split(/[^a-zàâäéèêëïîôùûüç0-9]+/)  // Support French accents
                 .filter(t => t.length > 2 && !stopwords.has(t));
             
             if (queryTerms.length === 0) return [];
@@ -1239,25 +1315,21 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 let matchedTerms = 0;
                 
                 for (const term of queryTerms) {
-                    // Count occurrences
                     const regex = new RegExp(term, 'gi');
                     const matches = (text.match(regex) || []).length;
                     
                     if (matches > 0) {
-                        // BM25-like scoring: tf * idf approximation
-                        const tf = matches / (text.length / 100); // Normalize by length
+                        const tf = matches / (text.length / 100);
                         const termScore = Math.log(1 + tf) * (1 + 1 / (queryTerms.length));
                         score += termScore;
                         matchedTerms++;
                     }
                 }
                 
-                // Bonus for matching multiple terms
                 if (matchedTerms > 1) {
                     score *= (1 + matchedTerms * 0.2);
                 }
                 
-                // Boost overview chunks slightly
                 if (chunk.type === 'OVERVIEW') {
                     score *= 1.1;
                 }
@@ -1265,7 +1337,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 return { ...chunk, keywordScore: score, idx };
             });
             
-            // Sort by keyword score and return top K
             return scored
                 .filter(c => c.keywordScore > 0)
                 .sort((a, b) => b.keywordScore - a.keywordScore)
@@ -1277,14 +1348,12 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             const scores = new Map();
             const chunks = new Map();
             
-            // Score from semantic search
             semanticResults.forEach((item, rank) => {
                 const id = item.id || `sem-${rank}`;
                 scores.set(id, (scores.get(id) || 0) + 1 / (k + rank + 1));
                 chunks.set(id, item);
             });
             
-            // Score from keyword search
             keywordResults.forEach((item, rank) => {
                 const id = item.id || `kw-${rank}`;
                 scores.set(id, (scores.get(id) || 0) + 1 / (k + rank + 1));
@@ -1293,7 +1362,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 }
             });
             
-            // Sort by combined RRF score
             const results = [...scores.entries()]
                 .sort((a, b) => b[1] - a[1])
                 .map(([id, rrfScore]) => {
@@ -1308,22 +1376,18 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         async function hybridSearch(query, topK = 10) {
             const startTime = performance.now();
             
-            // 1. Semantic search
             const queryEmbedding = await generateEmbedding(query);
             const semanticResults = searchVectorStore(queryEmbedding, CONFIG.TOP_K_SEMANTIC || 15);
-            
-            // 2. Keyword search
             const keywordResults = keywordSearch(query, CONFIG.TOP_K_KEYWORD || 15);
             
-            // 3. Fuse results with RRF
-            const fusedResults = reciprocalRankFusion(
-                semanticResults, 
-                keywordResults, 
-                CONFIG.RRF_K || 60
-            );
-            
-            // Take top K
-            const finalResults = fusedResults.slice(0, topK);
+            let finalResults;
+            if (keywordResults.length === 0) {
+                console.log('⚠️ No keyword matches, using semantic search only');
+                finalResults = semanticResults.slice(0, topK);
+            } else {
+                const fusedResults = reciprocalRankFusion(semanticResults, keywordResults, CONFIG.RRF_K || 60);
+                finalResults = fusedResults.slice(0, topK);
+            }
             
             const searchTime = performance.now() - startTime;
             console.log(`🔍 Hybrid search completed in ${searchTime.toFixed(0)}ms`);
@@ -1335,29 +1399,33 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         async function smartPaperRetrieval(userQuery, topK = 10) {
             if (state.vectorStore.length === 0) return [];
             
-            const isGeneric = isGenericPaperQuestion(userQuery);
+            // Use embedding-based classification
+            const classification = await classifyQuery(userQuery);
             
-            if (isGeneric) {
+            if (classification.isGeneric) {
+                console.log(`📋 Generic query detected (${classification.method}, ${(classification.confidence * 100).toFixed(0)}% confidence)`);
+                
                 // For generic questions, prioritize overview chunks
                 const overviewChunks = state.vectorStore
                     .filter(c => c.type === 'OVERVIEW' || c.type === 'ABSTRACT')
                     .map(c => ({ ...c, similarity: 0.98, rrfScore: 1.0 }));
                 
+                // Add first content chunks to fill context
                 const firstChunks = state.vectorStore
                     .filter(c => c.type !== 'OVERVIEW' && c.type !== 'ABSTRACT')
-                    .slice(0, Math.min(5, topK - overviewChunks.length))
+                    .sort((a, b) => (a.priority || 999) - (b.priority || 999))
+                    .slice(0, Math.max(5, topK - overviewChunks.length))
                     .map(c => ({ ...c, similarity: 0.85, rrfScore: 0.5 }));
                 
                 const combined = [...overviewChunks, ...firstChunks].slice(0, topK);
                 
                 if (combined.length > 0) {
-                    console.log('📋 Generic query - returning overview chunks');
                     return combined;
                 }
             }
             
             // Use hybrid search for specific queries
-            console.log('🔍 Using hybrid search for specific query');
+            console.log('🔍 Specific query - using hybrid search');
             return await hybridSearch(userQuery, topK);
         }
 
@@ -1696,6 +1764,9 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 if (embeddingsWorker) {
                     embeddingsWorker.postMessage({ action: 'init', model: CONFIG.EMBEDDING_MODEL });
                 }
+                
+                // Initialize query classifier (async, non-blocking)
+                initQueryClassifier().catch(e => console.warn('Query classifier init failed:', e));
                 
                 progressText.textContent = 'Loading WebLLM...';
                 progressPercent.textContent = '45%';
@@ -2137,7 +2208,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     topSimilarity: retrievalMetrics.topSimilarity,
                     avgSimilarity: retrievalMetrics.avgSimilarity
                 });
-                
+                console.log('📊 Advanced metrics:', advancedMetrics);
                 const queryMetrics = {
                     id: queryId,
                     timestamp: Date.now(),

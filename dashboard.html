@@ -757,6 +757,12 @@
                 const d1Arr = queries.map(q => safe(q, 'advanced.distinct1'));
                 const d2Arr = queries.map(q => safe(q, 'advanced.distinct2'));
                 const lenArr = queries.map(q => safe(q, 'advanced.responseLength'));
+                
+                // Self-eval metrics
+                const queriesWithSelfEval = queries.filter(q => q.selfEval);
+                const faithArr = queriesWithSelfEval.map(q => safe(q, 'selfEval.faithfulness'));
+                const relevArr = queriesWithSelfEval.map(q => safe(q, 'selfEval.relevance'));
+                const coherArr = queriesWithSelfEval.map(q => safe(q, 'selfEval.coherence'));
 
                 return {
                     avgContextUtilization: avg(ctxArr),
@@ -765,7 +771,11 @@
                     avgCompleteness: avg(completeArr),
                     avgDistinct1: avg(d1Arr),
                     avgDistinct2: avg(d2Arr),
-                    avgResponseLength: avg(lenArr)
+                    avgResponseLength: avg(lenArr),
+                    // Self-eval
+                    avgSelfEvalFaithfulness: avg(faithArr),
+                    avgSelfEvalRelevance: avg(relevArr),
+                    avgSelfEvalCoherence: avg(coherArr)
                 };
             }
 
@@ -801,10 +811,10 @@
             document.getElementById('feedback-down').textContent = thumbsDown;
             document.getElementById('feedback-none').textContent = noFeedback;
 
-            // Self-Eval
-            const faithfulness = parseFloat(agg.avgSelfEvalFaithfulness || 0);
-            const relevance = parseFloat(agg.avgSelfEvalRelevance || 0);
-            const coherence = parseFloat(agg.avgSelfEvalCoherence || 0);
+            // Self-Eval - Use computed values from queries if agg doesn't have them
+            const faithfulness = parseFloat(agg.avgSelfEvalFaithfulness || computedAdvanced.avgSelfEvalFaithfulness || 0);
+            const relevance = parseFloat(agg.avgSelfEvalRelevance || computedAdvanced.avgSelfEvalRelevance || 0);
+            const coherence = parseFloat(agg.avgSelfEvalCoherence || computedAdvanced.avgSelfEvalCoherence || 0);
             
             document.getElementById('eval-faithfulness').textContent = `${faithfulness.toFixed(1)} / 5`;
             document.getElementById('eval-relevance').textContent = `${relevance.toFixed(1)} / 5`;
