@@ -39,6 +39,59 @@
         .prose code { background: #374151; padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.9em; }
         .prose pre { background: #1e293b; padding: 1em; border-radius: 8px; overflow-x: auto; margin: 0.5em 0; }
         .prose blockquote { border-left: 3px solid #3b82f6; padding-left: 1em; margin: 0.5em 0; opacity: 0.9; }
+        
+        /* Enhanced progress phases */
+        .progress-phases {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+        .progress-phase {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #334155;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+        .progress-phase.active {
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            animation: phase-pulse 1.5s ease-in-out infinite;
+        }
+        .progress-phase.complete {
+            background: #22c55e;
+        }
+        @keyframes phase-pulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+        
+        /* Cache badge */
+        .cache-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            background: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
+        }
+        
+        /* Quick start banner */
+        .quick-start-banner {
+            background: linear-gradient(90deg, rgba(34, 197, 94, 0.15), rgba(59, 130, 246, 0.15));
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            animation: banner-fade-in 0.5s ease-out;
+        }
+        @keyframes banner-fade-in {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
@@ -74,23 +127,43 @@
                     <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
                         <i class="fas fa-file-pdf text-red-400"></i>
                         Document Ingestion
+                        <span id="cache-indicator" class="hidden cache-badge">
+                            <i class="fas fa-bolt"></i> Cached
+                        </span>
                     </h2>
                     <div id="drop-zone" 
                          class="border-2 border-dashed border-slate-600 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 hover:bg-slate-700/50 transition-all">
                         <i class="fas fa-cloud-upload-alt text-4xl text-slate-500 mb-3"></i>
                         <p class="text-slate-400">Drag & drop PDF files here</p>
                         <p class="text-sm text-slate-500 mt-1">or click to browse</p>
+                        <p class="text-xs text-slate-600 mt-2">⚡ Supports large documents (100+ pages)</p>
                         <input type="file" id="file-input" multiple accept=".pdf" class="hidden">
                     </div>
                     
-                    <!-- Processing Status -->
+                    <!-- Enhanced Processing Status -->
                     <div id="processing-status" class="hidden mt-4">
+                        <!-- Phase indicators -->
+                        <div class="progress-phases mb-2">
+                            <div class="progress-phase" data-phase="extraction" title="PDF Extraction"></div>
+                            <div class="progress-phase" data-phase="chunking" title="Semantic Chunking"></div>
+                            <div class="progress-phase" data-phase="embedding" title="Embedding"></div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-slate-500 mb-2">
+                            <span>Extract</span>
+                            <span>Chunk</span>
+                            <span>Embed</span>
+                        </div>
                         <div class="flex items-center gap-2 text-sm text-blue-400">
                             <i class="fas fa-spinner fa-spin"></i>
                             <span id="processing-text">Processing...</span>
                         </div>
                         <div class="w-full bg-slate-700 rounded-full h-2 mt-2">
-                            <div id="processing-bar" class="bg-blue-500 h-2 rounded-full transition-all" style="width: 0%"></div>
+                            <div id="processing-bar" class="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        <div id="processing-stats" class="mt-2 text-xs text-slate-500 hidden">
+                            <span id="stat-pages">0 pages</span> • 
+                            <span id="stat-chunks">0 chunks</span> • 
+                            <span id="stat-time">0s</span>
                         </div>
                     </div>
                 </div>
@@ -125,9 +198,14 @@
                         <p class="text-sm text-slate-500 italic">No documents loaded yet</p>
                     </div>
                     
-                    <button id="clear-memory" class="w-full mt-4 py-2 px-4 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors text-sm">
-                        <i class="fas fa-trash mr-2"></i>Clear All Memory
-                    </button>
+                    <div class="flex gap-2 mt-4">
+                        <button id="clear-memory" class="flex-1 py-2 px-4 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors text-sm">
+                            <i class="fas fa-trash mr-2"></i>Clear Memory
+                        </button>
+                        <button id="clear-cache" class="py-2 px-4 bg-slate-600/20 text-slate-400 rounded-lg hover:bg-slate-600/30 transition-colors text-sm" title="Clear PDF cache">
+                            <i class="fas fa-database"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- System Controls -->
@@ -169,7 +247,7 @@
                             </button>
                         </div>
                         
-                        <!-- 🔧 FIX: System Prompt moins restrictif -->
+                        <!-- System Prompt -->
                         <div>
                             <label class="text-sm text-slate-400 mb-1 block">System Prompt</label>
                             <textarea id="system-prompt" rows="6"
@@ -229,6 +307,12 @@ Be helpful, accurate and concise.</textarea>
                                 <li>Upload your research PDFs using the drop zone</li>
                                 <li>Ask me questions or request a literature review!</li>
                             </ol>
+                            <div class="mt-3 p-2 bg-green-600/10 border border-green-600/30 rounded-lg">
+                                <p class="text-green-400 text-sm">
+                                    <i class="fas fa-bolt mr-1"></i>
+                                    <strong>NEW:</strong> Fast processing for large PDFs (100+ pages) with intelligent caching!
+                                </p>
+                            </div>
                             <p class="text-slate-400 text-sm mt-3 italic">Tip: Try "Generate a literature review of the uploaded papers"</p>
                         </div>
                     </div>
@@ -297,20 +381,37 @@ Be helpful, accurate and concise.</textarea>
         import { getDatabase, ref, push, set, update, onValue, get } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-database.js";
         
         // Import advanced analytics library
-        // Note: Make sure analytics.js is in the same directory
         import { AdvancedAnalytics } from './analytics.js';
         
         // ============================================
         // CONFIGURATION & STATE
         // ============================================
         const CONFIG = {
-            CHUNK_SIZE: 1000,
-            CHUNK_OVERLAP: 250,
+            // Chunking - Tuned for more chunks
+            CHUNK_SIZE: 800,            // Smaller = more chunks
+            CHUNK_OVERLAP: 100,         // Overlap between chunks
+            MIN_CHUNK_SIZE: 100,        // Minimum viable chunk
+            MAX_CHUNK_SIZE: 1500,       // Maximum chunk size
+            
+            // PDF Processing
+            PARALLEL_PAGES: 8,          // Pages to extract in parallel
+            PAGE_BATCH_SIZE: 20,        // Process pages in batches
+            PRIORITY_EMBED_COUNT: 10,   // Embed these first for quick results
+            
+            // Cache
+            CACHE_DB_NAME: 'pdf-cache-db',
+            CACHE_STORE_NAME: 'documents',
+            CACHE_VERSION: 1,
+            CACHE_MAX_AGE_MS: 7 * 24 * 60 * 60 * 1000, // 7 days
+            
+            // Models
             EMBEDDING_MODEL: 'Xenova/all-MiniLM-L6-v2',
             WHISPER_MODEL: 'Xenova/whisper-tiny',
             LLM_MODEL: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
+            
+            // RAG
             TOP_K: 10,
-            TEMPERATURE: 0.4,  // 🔧 FIX: Reduced for more factual responses
+            TEMPERATURE: 0.4,
             TTS_ENABLED: true,
             SELF_EVAL_ENABLED: true,
             STORAGE_KEY: 'lit-reviewer-metrics'
@@ -328,16 +429,18 @@ Be helpful, accurate and concise.</textarea>
             isGenerating: false,
             isTranscribing: false,
             modelsLoaded: false,
+            priorityReady: false,  // True when priority chunks are embedded
             // Metrics tracking
             sessionId: crypto.randomUUID(),
             sessionStartTime: Date.now(),
             currentQueryMetrics: null,
             queriesMetrics: [],
-            analytics: new AdvancedAnalytics()  // Advanced metrics tracking
+            analytics: new AdvancedAnalytics(),
+            // Cache manager
+            pdfCache: null
         };
 
-        // Initialize analytics worker for heavy metric computation (keeps UI thread responsive)
-        // Worker runs locally in the browser and posts back computed `advanced` metrics.
+        // Initialize analytics worker
         let analyticsWorker = null;
         try {
             analyticsWorker = new Worker('analytics.worker.js', { type: 'module' });
@@ -349,19 +452,16 @@ Be helpful, accurate and concise.</textarea>
                 }
                 if (!id) return;
 
-                // Update in-memory state
                 const q = state.queriesMetrics.find(x => x.id === id);
                 if (q) {
                     q.advanced = Object.assign({}, q.advanced || {}, advanced);
                 }
 
-                // Persist advanced metrics to Firebase or localStorage
                 try {
                     if (firebaseSessionRef) {
                         const advRef = ref(database, `sessions/${firebaseSessionRef.key}/queries/${id}/advanced`);
                         await set(advRef, advanced);
                     } else if (q) {
-                        // update local copy and localStorage
                         saveToLocalStorage(q);
                     }
                 } catch (e) {
@@ -373,7 +473,7 @@ Be helpful, accurate and concise.</textarea>
             analyticsWorker = null;
         }
 
-        // Initialize embeddings worker to offload embedding computation (optional)
+        // Initialize embeddings worker
         let embeddingsWorker = null;
         let embeddingsWorkerReady = false;
         try {
@@ -383,14 +483,10 @@ Be helpful, accurate and concise.</textarea>
                 if (msg.action === 'inited') {
                     embeddingsWorkerReady = true;
                     console.log('Embeddings worker initialized for model', msg.model);
-                } else if (msg.action === 'initProgress') {
-                    // ignore or log
-                    // console.log('Embeddings worker progress', msg.progress);
                 } else if (msg.action === 'embedResult') {
                     const { id, buffers, dims } = msg;
                     const resolver = _pendingEmbedResolvers[id];
                     if (resolver) {
-                        // reconstruct Float32Array arrays
                         const arrs = buffers.map(b => new Float32Array(b));
                         resolver.resolve({ arrs, dims });
                         delete _pendingEmbedResolvers[id];
@@ -420,24 +516,300 @@ Be helpful, accurate and concise.</textarea>
             measurementId: "G-XSH19F0QVY"
         };
         
-        // Initialize Firebase
         const firebaseApp = initializeApp(firebaseConfig);
         const database = getDatabase(firebaseApp);
         
-        // ============================================
-        // METRICS & PERSISTENCE (Firebase + localStorage fallback)
-        // ============================================
-        
         let firebaseSessionRef = null;
         
-        // Initialize metrics storage
+        // ============================================
+        // INDEXEDDB PDF CACHE MANAGER
+        // ============================================
+        class PDFCacheManager {
+            constructor() {
+                this.db = null;
+                this.ready = this.init();
+            }
+            
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(CONFIG.CACHE_DB_NAME, CONFIG.CACHE_VERSION);
+                    
+                    request.onerror = () => reject(request.error);
+                    
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        if (!db.objectStoreNames.contains(CONFIG.CACHE_STORE_NAME)) {
+                            const store = db.createObjectStore(CONFIG.CACHE_STORE_NAME, { keyPath: 'hash' });
+                            store.createIndex('timestamp', 'timestamp');
+                            store.createIndex('fileName', 'fileName');
+                        }
+                    };
+                    
+                    request.onsuccess = () => {
+                        this.db = request.result;
+                        this.cleanExpiredCache();
+                        resolve(this.db);
+                    };
+                });
+            }
+            
+            async generateHash(file) {
+                const buffer = await file.slice(0, 1024 * 100).arrayBuffer();
+                const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                return hashArray.map(b => b.toString(16).padStart(2, '0')).join('') + '_' + file.size;
+            }
+            
+            async get(hash) {
+                await this.ready;
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(CONFIG.CACHE_STORE_NAME, 'readonly');
+                    const store = tx.objectStore(CONFIG.CACHE_STORE_NAME);
+                    const request = store.get(hash);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            
+            async set(hash, data) {
+                await this.ready;
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(CONFIG.CACHE_STORE_NAME, 'readwrite');
+                    const store = tx.objectStore(CONFIG.CACHE_STORE_NAME);
+                    const record = { hash, ...data, timestamp: Date.now() };
+                    const request = store.put(record);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            
+            async clear() {
+                await this.ready;
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(CONFIG.CACHE_STORE_NAME, 'readwrite');
+                    const store = tx.objectStore(CONFIG.CACHE_STORE_NAME);
+                    const request = store.clear();
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+            }
+            
+            async cleanExpiredCache() {
+                await this.ready;
+                const cutoff = Date.now() - CONFIG.CACHE_MAX_AGE_MS;
+                
+                const tx = this.db.transaction(CONFIG.CACHE_STORE_NAME, 'readwrite');
+                const store = tx.objectStore(CONFIG.CACHE_STORE_NAME);
+                const index = store.index('timestamp');
+                const range = IDBKeyRange.upperBound(cutoff);
+                
+                index.openCursor(range).onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (cursor) {
+                        store.delete(cursor.primaryKey);
+                        cursor.continue();
+                    }
+                };
+            }
+        }
+
+        // ============================================
+        // PARALLEL PDF EXTRACTOR
+        // ============================================
+        class ParallelPDFExtractor {
+            constructor(progressCallback = null) {
+                this.progressCallback = progressCallback;
+            }
+            
+            async extract(file) {
+                const startTime = performance.now();
+                
+                const arrayBuffer = await file.arrayBuffer();
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                const numPages = pdf.numPages;
+                
+                this.progressCallback?.({
+                    phase: 'extraction',
+                    current: 0,
+                    total: numPages,
+                    message: `Extracting ${numPages} pages...`
+                });
+                
+                const pageTexts = new Array(numPages);
+                const pageMetadata = new Array(numPages);
+                
+                // Extract pages in parallel batches
+                for (let batchStart = 0; batchStart < numPages; batchStart += CONFIG.PAGE_BATCH_SIZE) {
+                    const batchEnd = Math.min(batchStart + CONFIG.PAGE_BATCH_SIZE, numPages);
+                    
+                    for (let i = batchStart; i < batchEnd; i += CONFIG.PARALLEL_PAGES) {
+                        const parallelEnd = Math.min(i + CONFIG.PARALLEL_PAGES, batchEnd);
+                        const parallelPromises = [];
+                        
+                        for (let j = i; j < parallelEnd; j++) {
+                            parallelPromises.push(this.extractPage(pdf, j + 1, j));
+                        }
+                        
+                        const results = await Promise.all(parallelPromises);
+                        results.forEach(({ pageNum, text, metadata }) => {
+                            pageTexts[pageNum] = text;
+                            pageMetadata[pageNum] = metadata;
+                        });
+                        
+                        this.progressCallback?.({
+                            phase: 'extraction',
+                            current: parallelEnd,
+                            total: numPages,
+                            message: `Extracted page ${parallelEnd}/${numPages}`
+                        });
+                    }
+                }
+                
+                const extractTime = performance.now() - startTime;
+                console.log(`✅ PDF extraction completed in ${(extractTime/1000).toFixed(2)}s`);
+                console.log(`📄 Extracted ${numPages} pages, total text: ${pageTexts.join('').length} characters`);
+                console.log(`📄 First 500 chars:`, pageTexts.join(' ').substring(0, 500));
+                
+                return {
+                    pages: pageTexts,
+                    metadata: pageMetadata,
+                    fullText: pageTexts.join('\n\n'),
+                    numPages,
+                    extractTime
+                };
+            }
+            
+            async extractPage(pdf, pageNum, index) {
+                try {
+                    const page = await pdf.getPage(pageNum);
+                    const textContent = await page.getTextContent();
+                    
+                    const items = textContent.items;
+                    let text = '';
+                    let lastY = null;
+                    
+                    for (const item of items) {
+                        const y = item.transform[5];
+                        if (lastY !== null && Math.abs(y - lastY) > 5) {
+                            text += '\n';
+                        }
+                        text += item.str + ' ';
+                        lastY = y;
+                    }
+                    
+                    const metadata = {};
+                    if (pageNum === 1) {
+                        metadata.isFirstPage = true;
+                        metadata.possibleTitle = this.detectTitle(text);
+                    }
+                    
+                    return { pageNum: index, text: text.trim(), metadata };
+                } catch (error) {
+                    console.warn(`Error extracting page ${pageNum}:`, error);
+                    return { pageNum: index, text: '', metadata: {} };
+                }
+            }
+            
+            detectTitle(text) {
+                const lines = text.split('\n').filter(l => l.trim().length > 10);
+                for (let i = 0; i < Math.min(5, lines.length); i++) {
+                    const line = lines[i].trim();
+                    if (line.length > 20 && line.length < 200) {
+                        return line;
+                    }
+                }
+                return null;
+            }
+        }
+
+        // ============================================
+        // SIMPLE SLIDING WINDOW CHUNKER
+        // ============================================
+        class SemanticChunker {
+            chunk(text, fileName) {
+                const chunks = [];
+                const cleanText = text.replace(/\s+/g, ' ').trim();
+                
+                console.log('📄 Text to chunk:', cleanText.length, 'characters');
+                
+                if (cleanText.length < 100) {
+                    console.warn('⚠️ Very short text extracted!');
+                    return [{
+                        text: cleanText,
+                        type: 'CONTENT',
+                        section: 'all',
+                        priority: 0
+                    }];
+                }
+                
+                // 1. Create overview chunk (first 2500 chars max)
+                const overviewLength = Math.min(2500, cleanText.length);
+                chunks.push({
+                    text: `# Document: ${fileName}\n\n${cleanText.substring(0, overviewLength)}`,
+                    type: 'OVERVIEW',
+                    section: 'overview',
+                    priority: 0
+                });
+                
+                // 2. Sliding window on ENTIRE text
+                let start = 0;
+                let chunkIndex = 0;
+                const chunkSize = CONFIG.CHUNK_SIZE || 800;
+                const overlap = CONFIG.CHUNK_OVERLAP || 150;
+                const minSize = CONFIG.MIN_CHUNK_SIZE || 100;
+                
+                console.log(`📐 Chunking with size=${chunkSize}, overlap=${overlap}, min=${minSize}`);
+                
+                while (start < cleanText.length) {
+                    let end = Math.min(start + chunkSize, cleanText.length);
+                    
+                    // Try to break at sentence boundary
+                    if (end < cleanText.length) {
+                        const searchStart = Math.max(start + minSize, end - 100);
+                        const segment = cleanText.substring(searchStart, end + 50);
+                        const periodIdx = segment.lastIndexOf('. ');
+                        if (periodIdx > 0) {
+                            end = searchStart + periodIdx + 1;
+                        }
+                    }
+                    
+                    const chunkText = cleanText.slice(start, end).trim();
+                    
+                    if (chunkText.length >= minSize) {
+                        chunks.push({
+                            text: chunkText,
+                            type: 'CONTENT',
+                            section: `part-${chunkIndex + 1}`,
+                            priority: chunkIndex + 1
+                        });
+                        chunkIndex++;
+                    }
+                    
+                    // Move forward
+                    const step = chunkSize - overlap;
+                    start += step > 0 ? step : chunkSize;
+                    
+                    // Safety: prevent infinite loop
+                    if (start <= 0) start = chunkSize;
+                    if (end >= cleanText.length) break;
+                }
+                
+                console.log(`✅ Created ${chunks.length} chunks (1 overview + ${chunks.length - 1} content)`);
+                return chunks;
+            }
+        }
+
+        // ============================================
+        // METRICS & PERSISTENCE
+        // ============================================
+        
         async function initMetricsStorage() {
             try {
-                // Create a new session reference in Firebase
                 const sessionsRef = ref(database, 'sessions');
                 firebaseSessionRef = push(sessionsRef);
                 
-                // Initialize session data
                 const sessionData = {
                     sessionId: state.sessionId,
                     timestamp: state.sessionStartTime,
@@ -449,8 +821,6 @@ Be helpful, accurate and concise.</textarea>
                 
                 await set(firebaseSessionRef, sessionData);
                 console.log('✅ Firebase connected - Session:', state.sessionId);
-                
-                // Update global stats
                 await incrementGlobalStat('totalSessions', 1);
                 
             } catch (e) {
@@ -459,34 +829,22 @@ Be helpful, accurate and concise.</textarea>
             }
         }
         
-        // Fallback to localStorage
         function initLocalStorage() {
             const existing = localStorage.getItem(CONFIG.STORAGE_KEY);
             if (!existing) {
-                const initial = {
-                    sessions: [],
-                    aggregates: getEmptyAggregates()
-                };
+                const initial = { sessions: [], aggregates: getEmptyAggregates() };
                 localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(initial));
             }
         }
         
         function getEmptyAggregates() {
             return {
-                totalSessions: 0,
-                totalQueries: 0,
-                totalThumbsUp: 0,
-                totalThumbsDown: 0,
-                avgTTFT: 0,
-                avgTPS: 0,
-                avgTopSimilarity: 0,
-                avgSelfEvalFaithfulness: 0,
-                avgSelfEvalRelevance: 0,
-                avgSelfEvalCoherence: 0
+                totalSessions: 0, totalQueries: 0, totalThumbsUp: 0, totalThumbsDown: 0,
+                avgTTFT: 0, avgTPS: 0, avgTopSimilarity: 0,
+                avgSelfEvalFaithfulness: 0, avgSelfEvalRelevance: 0, avgSelfEvalCoherence: 0
             };
         }
         
-        // Increment a global statistic
         async function incrementGlobalStat(statName, value) {
             try {
                 const statRef = ref(database, `aggregates/${statName}`);
@@ -498,7 +856,6 @@ Be helpful, accurate and concise.</textarea>
             }
         }
         
-        // Update running averages
         async function updateRunningAverage(statName, newValue, countStatName) {
             try {
                 const avgRef = ref(database, `aggregates/${statName}`);
@@ -509,7 +866,6 @@ Be helpful, accurate and concise.</textarea>
                 const currentAvg = avgSnap.exists() ? avgSnap.val() : 0;
                 const count = countSnap.exists() ? countSnap.val() : 0;
                 
-                // Calculate new running average
                 const newAvg = count > 0 
                     ? ((currentAvg * count) + newValue) / (count + 1)
                     : newValue;
@@ -520,15 +876,12 @@ Be helpful, accurate and concise.</textarea>
             }
         }
         
-        // Save query metrics to Firebase
         async function saveQueryMetrics(queryMetrics) {
             try {
                 if (firebaseSessionRef) {
-                    // Save to Firebase
                     const queryRef = ref(database, `sessions/${firebaseSessionRef.key}/queries/${queryMetrics.id}`);
                     await set(queryRef, queryMetrics);
                     
-                    // Update global aggregates
                     await incrementGlobalStat('totalQueries', 1);
                     
                     if (queryMetrics.generation?.ttftMs) {
@@ -541,29 +894,20 @@ Be helpful, accurate and concise.</textarea>
                         await updateRunningAverage('avgTopSimilarity', queryMetrics.retrieval.topSimilarity, 'totalQueries');
                     }
                     
-                    // Update session info
                     await update(ref(database, `sessions/${firebaseSessionRef.key}`), {
                         documentsProcessed: state.documents.length,
                         totalChunks: state.vectorStore.length,
                         lastActivity: Date.now()
                     });
                 } else {
-                    // Fallback to localStorage
                     saveToLocalStorage(queryMetrics);
                 }
             } catch (e) {
-                console.error('Error saving to Firebase, falling back to localStorage:', e);
+                console.error('Error saving to Firebase:', e);
                 saveToLocalStorage(queryMetrics);
             }
         }
         
-        // Save session metrics (called after each query)
-        function saveSessionMetrics() {
-            // This is now handled incrementally by saveQueryMetrics
-            // Keep for compatibility with existing code
-        }
-        
-        // Fallback localStorage save
         function saveToLocalStorage(queryMetrics) {
             try {
                 const data = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '{"sessions":[],"aggregates":{}}');
@@ -582,13 +926,7 @@ Be helpful, accurate and concise.</textarea>
                 }
                 
                 session.queries.push(queryMetrics);
-                session.documentsProcessed = state.documents.length;
-                session.totalChunks = state.vectorStore.length;
                 
-                // Recalculate aggregates
-                updateLocalAggregates(data);
-                
-                // Keep only last 100 sessions
                 if (data.sessions.length > 100) {
                     data.sessions = data.sessions.slice(-100);
                 }
@@ -599,38 +937,6 @@ Be helpful, accurate and concise.</textarea>
             }
         }
         
-        // Update local aggregates
-        function updateLocalAggregates(data) {
-            const allQueries = data.sessions.flatMap(s => s.queries || []);
-            const queriesWithSelfEval = allQueries.filter(q => q.selfEval);
-            
-            data.aggregates = {
-                totalSessions: data.sessions.length,
-                totalQueries: allQueries.length,
-                totalThumbsUp: allQueries.filter(q => q.feedback?.userVote === 'up').length,
-                totalThumbsDown: allQueries.filter(q => q.feedback?.userVote === 'down').length,
-                avgTTFT: allQueries.length > 0 
-                    ? Math.round(allQueries.reduce((sum, q) => sum + (q.generation?.ttftMs || 0), 0) / allQueries.length)
-                    : 0,
-                avgTPS: allQueries.length > 0
-                    ? Math.round(allQueries.reduce((sum, q) => sum + (q.generation?.tokensPerSecond || 0), 0) / allQueries.length)
-                    : 0,
-                avgTopSimilarity: allQueries.length > 0
-                    ? (allQueries.reduce((sum, q) => sum + (q.retrieval?.topSimilarity || 0), 0) / allQueries.length).toFixed(3)
-                    : 0,
-                avgSelfEvalFaithfulness: queriesWithSelfEval.length > 0
-                    ? (queriesWithSelfEval.reduce((sum, q) => sum + (q.selfEval?.faithfulness || 0), 0) / queriesWithSelfEval.length).toFixed(1)
-                    : 0,
-                avgSelfEvalRelevance: queriesWithSelfEval.length > 0
-                    ? (queriesWithSelfEval.reduce((sum, q) => sum + (q.selfEval?.relevance || 0), 0) / queriesWithSelfEval.length).toFixed(1)
-                    : 0,
-                avgSelfEvalCoherence: queriesWithSelfEval.length > 0
-                    ? (queriesWithSelfEval.reduce((sum, q) => sum + (q.selfEval?.coherence || 0), 0) / queriesWithSelfEval.length).toFixed(1)
-                    : 0
-            };
-        }
-        
-        // Record user feedback for a query
         async function recordFeedback(queryId, vote) {
             const query = state.queriesMetrics.find(q => q.id === queryId);
             if (query) {
@@ -638,18 +944,11 @@ Be helpful, accurate and concise.</textarea>
                 
                 try {
                     if (firebaseSessionRef) {
-                        // Update in Firebase
                         const feedbackRef = ref(database, `sessions/${firebaseSessionRef.key}/queries/${queryId}/feedback`);
                         await set(feedbackRef, query.feedback);
                         
-                        // Update global feedback counts
-                        if (vote === 'up') {
-                            await incrementGlobalStat('totalThumbsUp', 1);
-                        } else {
-                            await incrementGlobalStat('totalThumbsDown', 1);
-                        }
-                    } else {
-                        saveToLocalStorage(query);
+                        if (vote === 'up') await incrementGlobalStat('totalThumbsUp', 1);
+                        else await incrementGlobalStat('totalThumbsDown', 1);
                     }
                 } catch (e) {
                     console.error('Error saving feedback:', e);
@@ -657,7 +956,6 @@ Be helpful, accurate and concise.</textarea>
             }
         }
         
-        // Run self-evaluation using the LLM
         async function runSelfEvaluation(queryId, userQuery, context, response) {
             if (!CONFIG.SELF_EVAL_ENABLED || !state.llmEngine) return;
             
@@ -665,9 +963,7 @@ Be helpful, accurate and concise.</textarea>
                 const evalPrompt = `Rate this response on a scale of 1-5 for each criterion. Respond ONLY with JSON, no other text.
 
 Question: "${userQuery.substring(0, 200)}"
-
 Context provided: "${context.substring(0, 500)}..."
-
 Response given: "${response.substring(0, 500)}..."
 
 Rate:
@@ -684,13 +980,10 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 });
                 
                 const evalText = evalResponse.choices[0]?.message?.content || '';
-                
-                // Parse JSON from response
                 const jsonMatch = evalText.match(/\{[\s\S]*\}/);
+                
                 if (jsonMatch) {
                     const evalResult = JSON.parse(jsonMatch[0]);
-                    
-                    // Validate and clamp values
                     const clamp = (v) => Math.max(1, Math.min(5, parseInt(v) || 3));
                     
                     const query = state.queriesMetrics.find(q => q.id === queryId);
@@ -702,16 +995,9 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                             timestamp: Date.now()
                         };
                         
-                        // Save to Firebase
                         if (firebaseSessionRef) {
                             const selfEvalRef = ref(database, `sessions/${firebaseSessionRef.key}/queries/${queryId}/selfEval`);
                             await set(selfEvalRef, query.selfEval);
-                            
-                            // Update running averages
-                            await updateRunningAverage('avgSelfEvalFaithfulness', query.selfEval.faithfulness, 'totalSelfEvals');
-                            await updateRunningAverage('avgSelfEvalRelevance', query.selfEval.relevance, 'totalSelfEvals');
-                            await updateRunningAverage('avgSelfEvalCoherence', query.selfEval.coherence, 'totalSelfEvals');
-                            await incrementGlobalStat('totalSelfEvals', 1);
                         }
                     }
                 }
@@ -724,7 +1010,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         // UTILITY FUNCTIONS
         // ============================================
         
-        // Cosine Similarity - Optimized for normalized vectors (just dot product)
         function cosineSimilarity(vecA, vecB) {
             const len = vecA.length;
             if (len !== vecB.length) return 0;
@@ -734,12 +1019,8 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             let i = 0;
             
             for (; i < len - remainder; i += 4) {
-                dot += vecA[i] * vecB[i] +
-                       vecA[i+1] * vecB[i+1] +
-                       vecA[i+2] * vecB[i+2] +
-                       vecA[i+3] * vecB[i+3];
+                dot += vecA[i] * vecB[i] + vecA[i+1] * vecB[i+1] + vecA[i+2] * vecB[i+2] + vecA[i+3] * vecB[i+3];
             }
-            
             for (; i < len; i++) {
                 dot += vecA[i] * vecB[i];
             }
@@ -747,38 +1028,11 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             return dot;
         }
 
-        // Text chunking with sliding window
-        function chunkText(text, chunkSize = CONFIG.CHUNK_SIZE, overlap = CONFIG.CHUNK_OVERLAP) {
-            const chunks = [];
-            const cleanText = text.replace(/\s+/g, ' ').trim();
-            
-            if (cleanText.length <= chunkSize) {
-                return [cleanText];
-            }
-            
-            let start = 0;
-            while (start < cleanText.length) {
-                const end = Math.min(start + chunkSize, cleanText.length);
-                const chunk = cleanText.slice(start, end);
-                
-                if (chunk.trim().length > 50) {
-                    chunks.push(chunk.trim());
-                }
-                
-                start += chunkSize - overlap;
-            }
-            
-            return chunks;
-        }
-
-        // Format bytes to human readable
         function formatBytes(bytes) {
             if (bytes === 0) return '0';
-            const k = 1024;
-            return Math.round(bytes / k);
+            return Math.round(bytes / 1024);
         }
 
-        // Simple markdown to HTML
         function markdownToHtml(text) {
             return text
                 .replace(/^### (.+)$/gm, '<h3>$1</h3>')
@@ -795,274 +1049,65 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         }
 
         // ============================================
-        // 🔧 FIX #1: IMPROVED METADATA EXTRACTION
-        // ============================================
-        
-        function extractPaperMetadata(fullText, fileName) {
-            console.log('📊 Extracting metadata from:', fileName);
-            
-            const metadata = {
-                title: 'Unknown',
-                abstract: '',
-                introduction: '',
-                methods: '',
-                results: '',
-                firstContent: ''
-            };
-            
-            // Clean text for matching
-            const text = fullText.replace(/\s+/g, ' ').trim();
-            
-            // ===== TITLE EXTRACTION =====
-            const titlePatterns = [
-                // "CORONAVIRUS Cryo-EM structure..." pattern
-                /(?:RESEARCH|ARTICLE|LETTER|REPORT|CORONAVIRUS|REVIEW)\s+([A-Z][A-Za-z0-9\s\-:,()–]+?)(?:\s+[A-Z][a-z]+\s*\d*\s*[,\*†])/i,
-                // Title before "Abstract"
-                /^(.{20,200}?)(?:\s+Abstract\s)/i,
-                // First substantial capitalized text
-                /^[\s\S]{0,100}?([A-Z][A-Za-z0-9\s\-:,()–]{20,150}?)(?:\s+[A-Z][a-z]+\s+[A-Z])/
-            ];
-            
-            for (const pattern of titlePatterns) {
-                const match = text.substring(0, 1200).match(pattern);
-                if (match && match[1] && match[1].length > 15) {
-                    metadata.title = match[1].trim();
-                    console.log('✅ Found title:', metadata.title.substring(0, 60) + '...');
-                    break;
-                }
-            }
-            
-            // ===== ABSTRACT EXTRACTION =====
-            const abstractPatterns = [
-                // Explicit "Abstract:" label
-                /abstract\s*[:—\-]?\s*(.{100,2500}?)(?=\s*(?:introduction|keywords|1\.\s|I\.\s|background))/i,
-                // Papers without "Abstract" label - look for first substantial paragraph
-                /(?:^|[\.\n]\s*)((The|A|In|We|This|Recent|Novel)\s+(?:novel\s+)?(?:coronavirus|outbreak|study|paper|research|investigation)[^\.]{30,}(?:\.[^\.]{30,}){1,5})/i,
-                // Fallback: First paragraph starting with common scientific openers
-                /(?:^|\n\s*)((The|A|In|We|This)\s+[^\.]{40,}(?:\.[^\.]{25,}){2,6})/i
-            ];
-            
-            for (const pattern of abstractPatterns) {
-                const match = fullText.match(pattern);
-                if (match && match[1] && match[1].length > 100) {
-                    // Filter out reference sections
-                    const candidate = match[1].trim();
-                    if (!candidate.match(/^\d+\.\s+[A-Z]\./) && !candidate.match(/et\s+al\.,?\s+\d{4}/)) {
-                        metadata.abstract = candidate.replace(/\s+/g, ' ').substring(0, 2000);
-                        console.log('✅ Found abstract, length:', metadata.abstract.length);
-                        break;
-                    }
-                }
-            }
-            
-            // ===== INTRODUCTION EXTRACTION =====
-            const introMatch = fullText.match(/(?:introduction|1\.\s*introduction)[\s\n]*[:—\-]?\s*([\s\S]{100,2000}?)(?=\s*(?:methods|methodology|materials|2\.|II\.|results))/i);
-            if (introMatch) {
-                metadata.introduction = introMatch[1].trim().replace(/\s+/g, ' ').substring(0, 1500);
-                console.log('✅ Found introduction, length:', metadata.introduction.length);
-            }
-            
-            // ===== METHODS EXTRACTION =====
-            const methodsMatch = fullText.match(/(?:methods|methodology|materials and methods)[\s\n]*[:—\-]?\s*([\s\S]{100,1500}?)(?=\s*(?:results|discussion|3\.|III\.))/i);
-            if (methodsMatch) {
-                metadata.methods = methodsMatch[1].trim().replace(/\s+/g, ' ').substring(0, 1000);
-            }
-            
-            // ===== CRITICAL: FIRST CONTENT FALLBACK =====
-            // Skip references/junk and get actual content
-            const contentStart = fullText.search(/(?:abstract|The\s+(?:novel|outbreak|emergence)|We\s+(?:report|present|describe)|This\s+(?:study|paper|research))/i);
-            const startPos = contentStart > 0 ? contentStart : 0;
-            metadata.firstContent = fullText.substring(startPos, startPos + 3000).replace(/\s+/g, ' ').trim();
-            console.log('📝 First content captured, length:', metadata.firstContent.length);
-            
-            return metadata;
-        }
-        
-        // ============================================
-        // 🔧 FIX #2: IMPROVED OVERVIEW CHUNK
-        // ============================================
-        
-        function createOverviewChunk(metadata, fileName) {
-            const parts = [];
-            
-            // Header
-            parts.push(`# Document: ${metadata.title !== 'Unknown' ? metadata.title : fileName}`);
-            parts.push(`Source: ${fileName}`);
-            parts.push('');
-            
-            // Priority 1: Use abstract if found and substantial
-            if (metadata.abstract && metadata.abstract.length > 150) {
-                parts.push('## Abstract/Summary:');
-                parts.push(metadata.abstract);
-            }
-            // Priority 2: Use first content as fallback
-            else if (metadata.firstContent && metadata.firstContent.length > 150) {
-                parts.push('## Document Content:');
-                parts.push(metadata.firstContent.substring(0, 2000));
-            }
-            
-            // Add introduction if available and different from abstract
-            if (metadata.introduction && metadata.introduction.length > 100) {
-                // Check it's not duplicate of abstract
-                const introStart = metadata.introduction.substring(0, 100);
-                const abstractStart = metadata.abstract ? metadata.abstract.substring(0, 100) : '';
-                if (introStart !== abstractStart) {
-                    parts.push('');
-                    parts.push('## Introduction:');
-                    parts.push(metadata.introduction.substring(0, 1000));
-                }
-            }
-            
-            // Add methods summary if available
-            if (metadata.methods && metadata.methods.length > 100) {
-                parts.push('');
-                parts.push('## Methodology:');
-                parts.push(metadata.methods.substring(0, 600));
-            }
-            
-            const overview = parts.join('\n');
-            console.log('📋 Overview chunk created, length:', overview.length);
-            console.log('📋 Overview preview:', overview.substring(0, 400) + '...');
-            
-            return overview;
-        }
-        
-        // ============================================
-        // 🔧 FIX #3: IMPROVED GENERIC QUESTION DETECTION
+        // SMART RAG RETRIEVAL
         // ============================================
         
         function isGenericPaperQuestion(query) {
             const genericPatterns = [
-                // Direct questions about paper content
                 /^what (is|are) (this|the) (paper|document|study|research)/i,
                 /what (is|are) (this|the) (paper|document|study|research) (about|on)/i,
                 /^what'?s (this|the) (paper|document|study|article)/i,
-                
-                // Summarization requests
                 /summarize (this|the|these) (paper|document|study|research)/i,
                 /^summary/i,
                 /give me (a |an )?(overview|summary)/i,
-                
-                // Explanation requests
                 /explain (me )?(this|the) (paper|document|study)/i,
                 /^describe (this|the) (paper|document)/i,
                 /tell me about (this|the) (paper|document|study)/i,
-                
-                // Content questions
                 /what does (this|the) (paper|document|study) (say|discuss|cover|describe)/i,
                 /what is discussed/i,
                 /main (topic|subject|theme|point|finding|conclusion)/i,
-                
-                // Literature review
                 /^literature review/i,
                 /^abstract/i,
                 /^overview/i,
-                
-                // Vague references
                 /what is this about/i,
                 /^about what/i,
                 /^what is this\??$/i
             ];
             
-            const isGeneric = genericPatterns.some(pattern => pattern.test(query.trim()));
-            console.log('🔍 Query classification:', query, '→', isGeneric ? 'GENERIC' : 'SPECIFIC');
-            return isGeneric;
+            return genericPatterns.some(pattern => pattern.test(query.trim()));
         }
         
-        // ============================================
-        // 🔧 FIX #4: IMPROVED SMART RETRIEVAL
-        // ============================================
-        
         async function smartPaperRetrieval(userQuery, topK = 10) {
-            if (state.vectorStore.length === 0) {
-                console.log('⚠️ Vector store is empty!');
-                return [];
-            }
+            if (state.vectorStore.length === 0) return [];
             
             const isGeneric = isGenericPaperQuestion(userQuery);
             
-            console.log('🔍 Query type:', isGeneric ? 'GENERIC (overview)' : 'SPECIFIC');
-            
             if (isGeneric) {
-                // Strategy for generic questions: prioritize OVERVIEW chunks
                 const overviewChunks = state.vectorStore
-                    .filter(c => c.type === 'OVERVIEW')
-                    .map(c => ({ ...c, similarity: 0.98 })); // High similarity to ensure they're used
+                    .filter(c => c.type === 'OVERVIEW' || c.type === 'ABSTRACT')
+                    .map(c => ({ ...c, similarity: 0.98 }));
                 
-                console.log('📄 Found', overviewChunks.length, 'overview chunks');
-                
-                // Also get first few regular chunks for additional context
                 const firstChunks = state.vectorStore
-                    .filter(c => c.type !== 'OVERVIEW')
+                    .filter(c => c.type !== 'OVERVIEW' && c.type !== 'ABSTRACT')
                     .slice(0, Math.min(5, topK - overviewChunks.length))
                     .map(c => ({ ...c, similarity: 0.85 }));
                 
                 const combined = [...overviewChunks, ...firstChunks].slice(0, topK);
                 
                 if (combined.length > 0) {
-                    console.log('✅ Returning', combined.length, 'chunks for generic query');
                     return combined;
                 }
             }
             
-            // Specific question: use semantic search
-            console.log('🎯 Using semantic search for specific question');
-            
-            // Enhance vague queries
             let enhancedQuery = userQuery;
-            const vaguePatterns = [
-                /^what is this/i,
-                /^tell me about this/i,
-                /^summarize this/i,
-                /^what does this say/i,
-                /^explain this/i
-            ];
+            const vaguePatterns = [/^what is this/i, /^tell me about this/i, /^summarize this/i];
             
             if (vaguePatterns.some(p => p.test(userQuery))) {
                 enhancedQuery = userQuery + " document abstract introduction summary content main findings";
-                console.log('✨ Enhanced query:', enhancedQuery);
             }
             
             const queryEmbedding = await generateEmbedding(enhancedQuery);
-            const results = searchVectorStore(queryEmbedding, topK);
-            
-            console.log('✅ Semantic search returned', results.length, 'chunks');
-            return results;
-        }
-
-        // ============================================
-        // PDF EXTRACTION
-        // ============================================
-        async function extractTextFromPDF(file) {
-            return new Promise(async (resolve, reject) => {
-                console.time(`extract:${file.name}`);
-                const extractStart = performance.now();
-                try {
-                    const arrayBuffer = await file.arrayBuffer();
-                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-                    
-                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                    let fullText = '';
-                    
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        const page = await pdf.getPage(i);
-                        const textContent = await page.getTextContent();
-                        const pageText = textContent.items.map(item => item.str).join(' ');
-                        fullText += pageText + '\n\n';
-                        
-                        const progress = Math.round((i / pdf.numPages) * 50);
-                        updateProcessingProgress(progress, `Extracting page ${i}/${pdf.numPages}...`);
-                    }
-                    
-                    const extracted = fullText.trim();
-                    console.timeEnd(`extract:${file.name}`);
-                    console.log(`extract:${file.name} duration ms:`, Math.round(performance.now() - extractStart));
-                    resolve(extracted);
-                } catch (error) {
-                    console.timeEnd(`extract:${file.name}`);
-                    reject(error);
-                }
-            });
+            return searchVectorStore(queryEmbedding, topK);
         }
 
         // ============================================
@@ -1083,15 +1128,13 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         }
         
         async function generateEmbeddingsBatch(texts, batchSize = 16) {
-            // Prefer using embeddingsWorker if available to avoid blocking main thread.
-            if (embeddingsWorker) {
-                // Post batch to worker and await result
+            if (embeddingsWorker && embeddingsWorkerReady) {
                 const id = 'embed-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
                 return new Promise((resolve, reject) => {
                     const timeout = setTimeout(() => {
                         delete _pendingEmbedResolvers[id];
                         reject(new Error('Embeddings worker timeout'));
-                    }, 120000); // 2 minutes timeout
+                    }, 120000);
 
                     _pendingEmbedResolvers[id] = {
                         resolve: ({ arrs }) => {
@@ -1116,70 +1159,17 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             }
 
             const embeddings = [];
-
-            console.time('generateEmbeddingsBatch');
-            const batchOverallStart = performance.now();
             for (let i = 0; i < texts.length; i += batchSize) {
                 const batch = texts.slice(i, Math.min(i + batchSize, texts.length));
-                console.time(`embed-batch-${i}`);
-                const batchStart = performance.now();
-
                 const batchResults = await Promise.all(
-                    batch.map(text => state.embeddingPipeline(text, {
-                        pooling: 'mean',
-                        normalize: true
-                    }))
+                    batch.map(text => state.embeddingPipeline(text, { pooling: 'mean', normalize: true }))
                 );
-
                 for (const result of batchResults) {
                     embeddings.push(new Float32Array(result.data));
                 }
-
-                console.timeEnd(`embed-batch-${i}`);
-                console.log(`embed-batch-${i} duration ms:`, Math.round(performance.now() - batchStart));
             }
-            console.timeEnd('generateEmbeddingsBatch');
-            console.log('generateEmbeddingsBatch total ms:', Math.round(performance.now() - batchOverallStart));
 
             return embeddings;
-        }
-
-        async function addToVectorStore(chunks, source, chunkType = 'NORMAL') {
-            const totalChunks = chunks.length;
-
-            console.time(`addToVectorStore:${source}:${chunkType}`);
-            const startAll = performance.now();
-            updateProcessingProgress(50, `Embedding ${totalChunks} chunks...`);
-
-            const batchSize = 16;
-            for (let i = 0; i < chunks.length; i += batchSize) {
-                const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
-                const batchLabel = `${source}:${chunkType}:batch:${i}`;
-                console.time(batchLabel);
-                const batchStart = performance.now();
-
-                const embeddings = await generateEmbeddingsBatch(batch, batchSize);
-
-                for (let j = 0; j < batch.length; j++) {
-                    state.vectorStore.push({
-                        text: batch[j],
-                        embedding: embeddings[j],
-                        source: source,
-                        type: chunkType,
-                        id: `${source}-${chunkType}-${i + j}`
-                    });
-                }
-
-                console.timeEnd(batchLabel);
-                console.log(`${batchLabel} duration ms:`, Math.round(performance.now() - batchStart));
-
-                const progress = 50 + Math.round(((i + batch.length) / totalChunks) * 50);
-                updateProcessingProgress(progress, `Embedded ${Math.min(i + batchSize, totalChunks)}/${totalChunks} chunks...`);
-            }
-
-            updateMemoryDisplay();
-            console.timeEnd(`addToVectorStore:${source}:${chunkType}`);
-            console.log(`addToVectorStore ${source} ${chunkType} total ms:`, Math.round(performance.now() - startAll));
         }
 
         function searchVectorStore(queryEmbedding, topK = CONFIG.TOP_K) {
@@ -1194,7 +1184,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 };
             }
             
-            // Partial sort for top K
             for (let i = 0; i < Math.min(topK, len); i++) {
                 let maxIdx = i;
                 for (let j = i + 1; j < len; j++) {
@@ -1216,6 +1205,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         // ============================================
         // UI UPDATES
         // ============================================
+        
         function updateMemoryDisplay() {
             const uniqueDocs = new Set(state.vectorStore.map(v => v.source));
             document.getElementById('doc-count').textContent = uniqueDocs.size;
@@ -1230,23 +1220,59 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 docList.innerHTML = '<p class="text-sm text-slate-500 italic">No documents loaded yet</p>';
             } else {
                 docList.innerHTML = Array.from(uniqueDocs).map(doc => {
-                    const chunkCount = state.vectorStore.filter(v => v.source === doc).length;
+                    const chunks = state.vectorStore.filter(v => v.source === doc);
+                    const sections = [...new Set(chunks.map(c => c.section).filter(s => s && s !== 'unknown'))];
                     return `
-                        <div class="flex items-center justify-between bg-slate-700/50 rounded-lg px-3 py-2">
-                            <div class="flex items-center gap-2 overflow-hidden">
-                                <i class="fas fa-file-pdf text-red-400 flex-shrink-0"></i>
-                                <span class="text-sm text-slate-300 truncate">${doc}</span>
+                        <div class="bg-slate-700/50 rounded-lg px-3 py-2">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2 overflow-hidden">
+                                    <i class="fas fa-file-pdf text-red-400 flex-shrink-0"></i>
+                                    <span class="text-sm text-slate-300 truncate">${doc}</span>
+                                </div>
+                                <span class="text-xs text-slate-500 flex-shrink-0">${chunks.length} chunks</span>
                             </div>
-                            <span class="text-xs text-slate-500 flex-shrink-0">${chunkCount} chunks</span>
+                            ${sections.length > 0 ? `
+                                <div class="mt-1 text-xs text-slate-500">
+                                    Sections: ${sections.slice(0, 4).join(', ')}${sections.length > 4 ? '...' : ''}
+                                </div>
+                            ` : ''}
                         </div>
                     `;
                 }).join('');
             }
         }
 
-        function updateProcessingProgress(percent, text) {
+        function updateProcessingProgressEnhanced(phase, current, total, message) {
+            const statusEl = document.getElementById('processing-status');
+            
+            // Update phase indicators
+            const phases = ['extraction', 'chunking', 'embedding'];
+            const currentPhaseIndex = phases.indexOf(phase.replace('-priority-done', ''));
+            
+            statusEl.querySelectorAll('.progress-phase').forEach((el, idx) => {
+                el.classList.remove('active', 'complete');
+                if (idx < currentPhaseIndex) {
+                    el.classList.add('complete');
+                } else if (idx === currentPhaseIndex) {
+                    el.classList.add('active');
+                }
+            });
+            
+            document.getElementById('processing-text').textContent = message;
+            
+            // Calculate overall progress
+            let percent = 0;
+            if (phase === 'extraction') {
+                percent = Math.round((current / total) * 35);
+            } else if (phase === 'chunking') {
+                percent = 35 + Math.round((current / total) * 5);
+            } else if (phase.includes('embedding')) {
+                percent = 40 + Math.round((current / total) * 60);
+            } else if (phase === 'cache') {
+                percent = 100;
+            }
+            
             document.getElementById('processing-bar').style.width = `${percent}%`;
-            document.getElementById('processing-text').textContent = text;
         }
 
         function showProcessing(show) {
@@ -1330,7 +1356,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             container.innerHTML = chunks.map((chunk, i) => `
                 <div class="bg-slate-700/50 rounded p-2 text-xs">
                     <div class="flex items-center justify-between mb-1">
-                        <span class="text-blue-400 font-medium">${chunk.source} <span class="text-slate-500">(${chunk.type})</span></span>
+                        <span class="text-blue-400 font-medium">${chunk.source} <span class="text-slate-500">(${chunk.type}${chunk.section ? ': ' + chunk.section : ''})</span></span>
                         <span class="text-slate-500">${(chunk.similarity * 100).toFixed(1)}% match</span>
                     </div>
                     <p class="text-slate-400 line-clamp-2">${chunk.text.substring(0, 150)}...</p>
@@ -1343,44 +1369,31 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         // ============================================
         // MODEL LOADING
         // ============================================
+        
         async function checkWebGPU() {
             const statusEl = document.getElementById('webgpu-status');
             
             if (!navigator.gpu) {
-                statusEl.innerHTML = `
-                    <span class="w-2 h-2 rounded-full bg-red-500"></span>
-                    <span class="text-red-400">WebGPU not supported</span>
-                `;
+                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-red-400">WebGPU not supported</span>`;
                 return false;
             }
             
             try {
                 const adapter = await navigator.gpu.requestAdapter();
                 if (!adapter) {
-                    statusEl.innerHTML = `
-                        <span class="w-2 h-2 rounded-full bg-red-500"></span>
-                        <span class="text-red-400">No GPU adapter found</span>
-                    `;
+                    statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-red-400">No GPU adapter found</span>`;
                     return false;
                 }
                 
-                statusEl.innerHTML = `
-                    <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span class="text-green-400">WebGPU Ready</span>
-                `;
+                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-green-400">WebGPU Ready</span>`;
                 return true;
             } catch (e) {
-                statusEl.innerHTML = `
-                    <span class="w-2 h-2 rounded-full bg-red-500"></span>
-                    <span class="text-red-400">WebGPU error</span>
-                `;
+                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-red-400">WebGPU error</span>`;
                 return false;
             }
         }
 
         async function loadModels() {
-            const modelLoadStart = performance.now();
-            const modelStatus = document.getElementById('model-status');
             const modelIndicator = document.getElementById('model-indicator');
             const modelText = document.getElementById('model-text');
             const modelProgress = document.getElementById('model-progress');
@@ -1399,7 +1412,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 progressBar.style.width = '5%';
                 
                 const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1');
-                
                 state.pipelineFactory = pipeline;
                 
                 progressText.textContent = 'Loading embedding model...';
@@ -1416,18 +1428,10 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     }
                 });
 
-                // Initialize embeddings worker with same model (non-blocking)
-                try {
-                    if (embeddingsWorker) {
-                        embeddingsWorker.postMessage({ action: 'init', model: CONFIG.EMBEDDING_MODEL });
-                    }
-                } catch (e) {
-                    console.warn('Failed to init embeddings worker:', e.message);
+                // Initialize embeddings worker
+                if (embeddingsWorker) {
+                    embeddingsWorker.postMessage({ action: 'init', model: CONFIG.EMBEDDING_MODEL });
                 }
-                
-                progressText.textContent = 'Whisper STT will load on first use...';
-                progressPercent.textContent = '40%';
-                progressBar.style.width = '40%';
                 
                 progressText.textContent = 'Loading WebLLM...';
                 progressPercent.textContent = '45%';
@@ -1435,7 +1439,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 
                 const webllm = await import('https://esm.run/@mlc-ai/web-llm');
                 
-                progressText.textContent = 'Loading LLM model (this may take a while)...';
+                progressText.textContent = 'Loading LLM model...';
                 
                 state.llmEngine = await webllm.CreateMLCEngine(CONFIG.LLM_MODEL, {
                     initProgressCallback: (progress) => {
@@ -1456,7 +1460,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 document.getElementById('user-input').disabled = false;
                 document.getElementById('send-btn').disabled = false;
                 
-                addMessage('assistant', 'Models loaded successfully! 🎉 I\'m ready to help you analyze your research papers. Upload some PDFs and ask me anything!\n\n🎤 **Voice input available** - Click the microphone (Whisper loads on first use).');
+                addMessage('assistant', '🎉 Models loaded successfully! I\'m ready to help you analyze your research papers.\n\n📄 **Upload PDFs** using the drop zone on the left.\n\n⚡ **Fast processing** - Large documents (100+ pages) are now processed much faster with intelligent caching!');
                 
             } catch (error) {
                 console.error('Error loading models:', error);
@@ -1470,26 +1474,218 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 addMessage('assistant', `❌ Error loading models: ${error.message}\n\nPlease make sure you're using a browser with WebGPU support (Chrome 113+ or Edge 113+).`);
             }
         }
+
+        // ============================================
+        // IMPROVED PDF PROCESSING
+        // ============================================
         
-        async function ensureWhisperLoaded() {
-            if (state.whisperPipeline) return true;
-            if (!state.pipelineFactory) return false;
-            
-            try {
-                addMessage('assistant', '🎤 Loading Whisper STT model for the first time...');
-                state.whisperPipeline = await state.pipelineFactory('automatic-speech-recognition', CONFIG.WHISPER_MODEL);
-                addMessage('assistant', '✅ Whisper ready! You can now use voice input.');
-                return true;
-            } catch (error) {
-                console.error('Error loading Whisper:', error);
-                addMessage('assistant', `❌ Failed to load Whisper: ${error.message}`);
-                return false;
+        async function processFilesImproved(files) {
+            if (files.length === 0) return;
+            if (!state.embeddingPipeline) {
+                addMessage('assistant', '⚠️ Please load the models first before uploading documents.');
+                return;
             }
+            if (state.isProcessing) return;
+            
+            state.isProcessing = true;
+            showProcessing(true);
+            
+            for (const file of files) {
+                try {
+                    const processStart = performance.now();
+                    
+                    // Check cache first
+                    const hash = await state.pdfCache.generateHash(file);
+                    const cached = await state.pdfCache.get(hash);
+                    
+                    if (cached && cached.embeddings) {
+                        // Restore from cache
+                        console.log('⚡ Restored from cache:', file.name);
+                        document.getElementById('cache-indicator').classList.remove('hidden');
+                        
+                        updateProcessingProgressEnhanced('cache', 1, 1, 'Restoring from cache...');
+                        
+                        for (const chunk of cached.embeddings) {
+                            if (chunk.embedding && !(chunk.embedding instanceof Float32Array)) {
+                                chunk.embedding = new Float32Array(Object.values(chunk.embedding));
+                            }
+                            state.vectorStore.push({
+                                ...chunk,
+                                source: file.name
+                            });
+                        }
+                        
+                        state.documents.push({
+                            name: file.name,
+                            title: cached.metadata?.title || file.name,
+                            chunkCount: cached.embeddings.length,
+                            sections: cached.metadata?.sections || [],
+                            fromCache: true
+                        });
+                        
+                        updateMemoryDisplay();
+                        
+                        const cacheTime = ((performance.now() - processStart) / 1000).toFixed(2);
+                        addMessage('assistant', `⚡ **${file.name}** restored from cache in ${cacheTime}s!\n\n📊 ${cached.embeddings.length} chunks ready.\n\n*Try: "What is this paper about?"*`);
+                        
+                        setTimeout(() => {
+                            document.getElementById('cache-indicator').classList.add('hidden');
+                        }, 3000);
+                        
+                        continue;
+                    }
+                    
+                    // Process new file
+                    console.log('📄 Processing new file:', file.name);
+                    
+                    // 1. Extract PDF (parallel)
+                    const extractor = new ParallelPDFExtractor((progress) => {
+                        updateProcessingProgressEnhanced(progress.phase, progress.current, progress.total, progress.message);
+                    });
+                    
+                    const extracted = await extractor.extract(file);
+                    
+                    if (extracted.fullText.trim().length < 100) {
+                        addMessage('assistant', `⚠️ Could not extract meaningful text from ${file.name}. The PDF might be image-based.`);
+                        continue;
+                    }
+                    
+                    // 2. Semantic chunking
+                    updateProcessingProgressEnhanced('chunking', 0, 1, 'Analyzing document structure...');
+                    
+                    console.log('📝 Full text length before chunking:', extracted.fullText.length);
+                    
+                    const chunker = new SemanticChunker();
+                    const rawChunks = chunker.chunk(extracted.fullText, file.name);
+                    
+                    updateProcessingProgressEnhanced('chunking', 1, 1, `Created ${rawChunks.length} semantic chunks`);
+                    
+                    // 3. Embed with priority (overview first)
+                    const sortedChunks = [...rawChunks].sort((a, b) => (a.priority || 999) - (b.priority || 999));
+                    const embeddedChunks = [];
+                    
+                    // Priority chunks first (for quick start)
+                    const priorityChunks = sortedChunks.slice(0, CONFIG.PRIORITY_EMBED_COUNT);
+                    const remainingChunks = sortedChunks.slice(CONFIG.PRIORITY_EMBED_COUNT);
+                    
+                    for (let i = 0; i < priorityChunks.length; i++) {
+                        const chunk = priorityChunks[i];
+                        const embedding = await generateEmbedding(chunk.text);
+                        
+                        const embeddedChunk = { ...chunk, embedding, source: file.name };
+                        embeddedChunks.push(embeddedChunk);
+                        
+                        state.vectorStore.push({
+                            text: chunk.text,
+                            embedding,
+                            source: file.name,
+                            type: chunk.type,
+                            section: chunk.section,
+                            id: `${file.name}-${chunk.type}-${chunk.priority}`
+                        });
+                        
+                        updateMemoryDisplay();
+                        
+                        updateProcessingProgressEnhanced(
+                            'embedding',
+                            i + 1,
+                            rawChunks.length,
+                            `Embedded ${i + 1}/${rawChunks.length} (priority)`
+                        );
+                    }
+                    
+                    // Quick start notification
+                    if (priorityChunks.length > 0 && remainingChunks.length > 0) {
+                        state.priorityReady = true;
+                        addMessage('assistant', `🚀 **Quick start ready!** Key sections of **${file.name}** are processed. You can start asking questions while ${remainingChunks.length} more chunks are being embedded...`);
+                    }
+                    
+                    // Remaining chunks in batches
+                    const batchSize = 16;
+                    for (let i = 0; i < remainingChunks.length; i += batchSize) {
+                        const batch = remainingChunks.slice(i, Math.min(i + batchSize, remainingChunks.length));
+                        const embeddings = await generateEmbeddingsBatch(batch.map(c => c.text), batchSize);
+                        
+                        batch.forEach((chunk, idx) => {
+                            const embeddedChunk = { ...chunk, embedding: embeddings[idx], source: file.name };
+                            embeddedChunks.push(embeddedChunk);
+                            
+                            state.vectorStore.push({
+                                text: chunk.text,
+                                embedding: embeddings[idx],
+                                source: file.name,
+                                type: chunk.type,
+                                section: chunk.section,
+                                id: `${file.name}-${chunk.type}-${chunk.priority}`
+                            });
+                        });
+                        
+                        updateMemoryDisplay();
+                        
+                        const completed = priorityChunks.length + i + batch.length;
+                        updateProcessingProgressEnhanced(
+                            'embedding',
+                            completed,
+                            rawChunks.length,
+                            `Embedded ${completed}/${rawChunks.length} chunks`
+                        );
+                    }
+                    
+                    // Extract metadata
+                    const sections = [...new Set(rawChunks.map(c => c.section).filter(s => s && s !== 'unknown'))];
+                    const metadata = {
+                        title: extracted.metadata[0]?.possibleTitle || file.name,
+                        numPages: extracted.numPages,
+                        sections,
+                        textLength: extracted.fullText.length,
+                        chunkCount: rawChunks.length
+                    };
+                    
+                    // Cache for future use
+                    try {
+                        const cacheableChunks = embeddedChunks.map(c => ({
+                            ...c,
+                            embedding: Array.from(c.embedding)
+                        }));
+                        
+                        await state.pdfCache.set(hash, {
+                            fileName: file.name,
+                            fileSize: file.size,
+                            embeddings: cacheableChunks,
+                            metadata
+                        });
+                        console.log('✅ Cached for future use');
+                    } catch (e) {
+                        console.warn('Failed to cache:', e);
+                    }
+                    
+                    // Store document info
+                    state.documents.push({
+                        name: file.name,
+                        title: metadata.title,
+                        chunkCount: rawChunks.length,
+                        sections,
+                        textLength: extracted.fullText.length
+                    });
+                    
+                    const totalTime = ((performance.now() - processStart) / 1000).toFixed(1);
+                    
+                    addMessage('assistant', `✅ **${file.name}** processed successfully!\n\n📊 **Statistics:**\n- Pages: ${extracted.numPages}\n- Chunks: ${rawChunks.length}\n- Sections: ${sections.slice(0, 5).join(', ')}${sections.length > 5 ? '...' : ''}\n- Processing time: ${totalTime}s\n\n💡 *Try: "What is this paper about?" or "Summarize the methods"*`);
+                    
+                } catch (error) {
+                    console.error(`Error processing ${file.name}:`, error);
+                    addMessage('assistant', `❌ Error processing ${file.name}: ${error.message}`);
+                }
+            }
+            
+            showProcessing(false);
+            state.isProcessing = false;
         }
 
         // ============================================
         // CHAT LOGIC
         // ============================================
+        
         async function handleChat(userMessage) {
             if (!state.modelsLoaded || state.isGenerating) return;
             
@@ -1517,10 +1713,8 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 
                 if (state.vectorStore.length > 0) {
                     const searchStart = performance.now();
-                    
                     const topK = parseInt(document.getElementById('top-k').value);
                     
-                    // 🔧 FIX: Use improved smart retrieval
                     relevantChunks = await smartPaperRetrieval(userMessage, topK);
                     
                     retrievalMetrics.searchTimeMs = Math.round(performance.now() - searchStart);
@@ -1528,7 +1722,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     if (relevantChunks.length > 0) {
                         showContextPanel(relevantChunks);
                         contextText = relevantChunks.map((chunk, i) => 
-                            `[Source: ${chunk.source}]\n${chunk.text}`
+                            `[Source: ${chunk.source}${chunk.section ? ' - ' + chunk.section : ''}]\n${chunk.text}`
                         ).join('\n\n---\n\n');
                         
                         retrievalMetrics.topSimilarity = relevantChunks[0].similarity;
@@ -1536,11 +1730,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         retrievalMetrics.sourceDiversity = new Set(relevantChunks.map(c => c.source)).size;
                     }
                 }
-                
-                // 🔧 FIX: Debug logs
-                console.log('📄 Context sent to LLM:');
-                console.log(contextText.substring(0, 800) + '...');
-                console.log('📊 Context length:', contextText.length, 'characters');
                 
                 const systemPrompt = document.getElementById('system-prompt').value;
                 const temperature = parseFloat(document.getElementById('temperature').value);
@@ -1552,10 +1741,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     fullSystemPrompt += '\n\nNote: No documents have been uploaded yet. Please upload PDF documents first.';
                 }
                 
-                let messages = [
-                    { role: 'system', content: fullSystemPrompt }
-                ];
-                
+                let messages = [{ role: 'system', content: fullSystemPrompt }];
                 const recentHistory = state.chatHistory.slice(-6);
                 messages = messages.concat(recentHistory);
                 
@@ -1628,10 +1814,10 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         </div>
                         <div class="flex items-center gap-2" id="feedback-${queryId}">
                             <span class="text-xs text-slate-500">Helpful?</span>
-                            <button onclick="window.recordFeedback('${queryId}', 'up')" class="feedback-btn p-1.5 rounded hover:bg-green-600/30 text-slate-400 hover:text-green-400 transition-colors" title="Yes, helpful">
+                            <button onclick="window.recordFeedback('${queryId}', 'up')" class="p-1.5 rounded hover:bg-green-600/30 text-slate-400 hover:text-green-400 transition-colors" title="Yes">
                                 <i class="fas fa-thumbs-up"></i>
                             </button>
-                            <button onclick="window.recordFeedback('${queryId}', 'down')" class="feedback-btn p-1.5 rounded hover:bg-red-600/30 text-slate-400 hover:text-red-400 transition-colors" title="Not helpful">
+                            <button onclick="window.recordFeedback('${queryId}', 'down')" class="p-1.5 rounded hover:bg-red-600/30 text-slate-400 hover:text-red-400 transition-colors" title="No">
                                 <i class="fas fa-thumbs-down"></i>
                             </button>
                         </div>
@@ -1643,91 +1829,55 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 
                 state.chatHistory.push({ role: 'assistant', content: fullResponse });
                 
+                // Track metrics
                 const advancedMetrics = state.analytics.trackQuery({
                     query: userMessage,
                     response: fullResponse,
                     sources: uniqueSources.map(s => ({ source: s })),
                     contextChunks: relevantChunks,
-                    ttftMs: ttftMs,
-                    totalTimeMs: totalTimeMs,
-                    tokensGenerated: tokensGenerated,
+                    ttftMs,
+                    totalTimeMs,
+                    tokensGenerated,
                     topSimilarity: retrievalMetrics.topSimilarity,
                     avgSimilarity: retrievalMetrics.avgSimilarity
                 });
-                
-                console.log('📊 Advanced Metrics:', advancedMetrics);
                 
                 const queryMetrics = {
                     id: queryId,
                     timestamp: Date.now(),
                     query: userMessage.substring(0, 200),
                     retrieval: retrievalMetrics,
-                    generation: {
-                        ttftMs,
-                        totalTimeMs,
-                        generationTimeMs,
-                        tokensGenerated,
-                        tokensPerSecond,
-                        throughput: advancedMetrics.throughput
-                    },
-                    advanced: {
-                        responseLength: advancedMetrics.responseLength,
-                        distinct1: advancedMetrics.diversity.distinct1,
-                        distinct2: advancedMetrics.diversity.distinct2,
-                        repetition: advancedMetrics.repetition,
-                        contextUtilization: advancedMetrics.contextUtilization,
-                        answerGrounding: advancedMetrics.answerGrounding,
-                        citationCoverage: advancedMetrics.citationCoverage,
-                        retrievalPrecision: advancedMetrics.retrievalPrecision,
-                        queryComplexity: advancedMetrics.queryComplexity.complexity,
-                        queryType: advancedMetrics.queryType,
-                        hallucinationScore: advancedMetrics.hallucinationScore,
-                        completeness: advancedMetrics.completeness,
-                        sourceDiversity: advancedMetrics.sourceDiversity
-                    },
+                    generation: { ttftMs, totalTimeMs, generationTimeMs, tokensGenerated, tokensPerSecond },
+                    advanced: advancedMetrics,
                     feedback: null,
                     selfEval: null
                 };
                 state.queriesMetrics.push(queryMetrics);
                 
                 saveQueryMetrics(queryMetrics);
-
-                // Offload full advanced analytics computation to worker (non-blocking)
+                
                 if (analyticsWorker) {
-                    try {
-                        analyticsWorker.postMessage({
-                            action: 'computeAdvanced',
-                            payload: {
-                                id: queryId,
-                                query: userMessage,
-                                response: fullResponse,
-                                sources: uniqueSources.map(s => ({ source: s })),
-                                contextChunks: relevantChunks,
-                                generation: {
-                                    totalTimeMs,
-                                    tokensGenerated
-                                },
-                                retrieval: retrievalMetrics
-                            }
-                        });
-                    } catch (e) {
-                        console.warn('Failed to post to analytics worker:', e.message);
-                    }
+                    analyticsWorker.postMessage({
+                        action: 'computeAdvanced',
+                        payload: {
+                            id: queryId,
+                            query: userMessage,
+                            response: fullResponse,
+                            sources: uniqueSources.map(s => ({ source: s })),
+                            contextChunks: relevantChunks,
+                            generation: { totalTimeMs, tokensGenerated },
+                            retrieval: retrievalMetrics
+                        }
+                    });
                 }
 
                 runSelfEvaluation(queryId, userMessage, contextText, fullResponse);
                 
                 if (CONFIG.TTS_ENABLED && window.speechSynthesis && fullResponse.length < 800) {
                     window.speechSynthesis.cancel();
-                    const cleanText = fullResponse
-                        .replace(/\*\*/g, '')
-                        .replace(/\*/g, '')
-                        .replace(/#{1,3}\s/g, '')
-                        .replace(/`/g, '')
-                        .substring(0, 500);
+                    const cleanText = fullResponse.replace(/\*\*/g, '').replace(/\*/g, '').replace(/#{1,3}\s/g, '').replace(/`/g, '').substring(0, 500);
                     const utterance = new SpeechSynthesisUtterance(cleanText);
                     utterance.rate = 1.0;
-                    utterance.pitch = 1.0;
                     window.speechSynthesis.speak(utterance);
                 }
                 
@@ -1752,7 +1902,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 feedbackDiv.innerHTML = `
                     <span class="text-xs ${isUp ? 'text-green-400' : 'text-red-400'}">
                         <i class="fas fa-${isUp ? 'thumbs-up' : 'thumbs-down'} mr-1"></i>
-                        ${isUp ? 'Thanks for the feedback!' : 'Thanks, we\'ll improve!'}
+                        ${isUp ? 'Thanks!' : 'We\'ll improve!'}
                     </span>
                 `;
             }
@@ -1761,9 +1911,14 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         // ============================================
         // EVENT LISTENERS
         // ============================================
+        
         document.addEventListener('DOMContentLoaded', async () => {
-            initMetricsStorage().catch(e => console.warn('Metrics init:', e));
+            // Initialize cache manager
+            state.pdfCache = new PDFCacheManager();
+            await state.pdfCache.ready;
+            console.log('✅ PDF cache initialized');
             
+            initMetricsStorage().catch(e => console.warn('Metrics init:', e));
             await checkWebGPU();
             
             const dropZone = document.getElementById('drop-zone');
@@ -1784,91 +1939,18 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 e.preventDefault();
                 dropZone.classList.remove('border-blue-500', 'bg-slate-700/50');
                 const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
-                await processFiles(files);
+                await processFilesImproved(files);
             });
             
             fileInput.addEventListener('change', async (e) => {
                 const files = Array.from(e.target.files);
-                await processFiles(files);
+                await processFilesImproved(files);
                 e.target.value = '';
             });
             
-            async function processFiles(files) {
-                if (files.length === 0) return;
-                if (!state.embeddingPipeline) {
-                    addMessage('assistant', '⚠️ Please load the models first before uploading documents.');
-                    return;
-                }
-                if (state.isProcessing) return;
-                
-                state.isProcessing = true;
-                showProcessing(true);
-                
-                for (const file of files) {
-                    try {
-                        updateProcessingProgress(0, `Processing ${file.name}...`);
-                        console.time(`process:${file.name}`);
-                        const processStart = performance.now();
-
-                        const text = await extractTextFromPDF(file);
-                        
-                        console.log('📄 Extracted text length:', text.length);
-                        console.log('📄 First 500 chars:', text.substring(0, 500));
-                        
-                        if (text.trim().length < 100) {
-                            addMessage('assistant', `⚠️ Could not extract meaningful text from ${file.name}. The PDF might be image-based.`);
-                            continue;
-                        }
-                        
-                        // 🔧 FIX: Use improved metadata extraction
-                        console.log('📊 Extracting paper metadata...');
-                        console.time(`metadata:${file.name}`);
-                        const metadata = extractPaperMetadata(text, file.name);
-                        console.timeEnd(`metadata:${file.name}`);
-                        console.log('✅ Metadata title:', metadata.title);
-                        
-                        // 🔧 FIX: Use improved overview chunk creation
-                        updateProcessingProgress(20, 'Creating document overview...');
-                        console.time(`overview:${file.name}`);
-                        const overviewChunk = createOverviewChunk(metadata, file.name);
-                        console.timeEnd(`overview:${file.name}`);
-                        
-                        // Add overview chunk FIRST
-                        await addToVectorStore([overviewChunk], file.name, 'OVERVIEW');
-                        
-                        updateProcessingProgress(30, 'Creating text chunks...');
-                        console.time(`chunking:${file.name}`);
-                        const chunks = chunkText(text);
-                        console.timeEnd(`chunking:${file.name}`);
-                        
-                        await addToVectorStore(chunks, file.name, 'NORMAL');
-                        
-                        state.documents.push({
-                            name: file.name,
-                            title: metadata.title,
-                            chunkCount: chunks.length + 1,
-                            textLength: text.length,
-                            hasOverview: true
-                        });
-                        
-                        const totalChunks = chunks.length + 1;
-                        console.timeEnd(`process:${file.name}`);
-                        console.log(`process:${file.name} total ms:`, Math.round(performance.now() - processStart));
-                        addMessage('assistant', `✅ Successfully processed **${file.name}**\n- Title: ${metadata.title}\n- Extracted ${text.length.toLocaleString()} characters\n- Created ${totalChunks} chunks (1 overview + ${chunks.length} content)\n- Generated ${totalChunks} embeddings\n\n*Try asking: "What is this paper about?"*`);
-                        
-                    } catch (error) {
-                        console.error(`Error processing ${file.name}:`, error);
-                        addMessage('assistant', `❌ Error processing ${file.name}: ${error.message}`);
-                    }
-                }
-                
-                showProcessing(false);
-                state.isProcessing = false;
-            }
-            
             document.getElementById('load-models-btn').addEventListener('click', loadModels);
             
-            // AUTO-LOAD models
+            // Auto-load models
             console.log('🚀 Auto-loading models...');
             loadModels();
             
@@ -1877,6 +1959,13 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 state.documents = [];
                 updateMemoryDisplay();
                 addMessage('assistant', '🗑️ Memory cleared. All documents have been removed.');
+            });
+            
+            document.getElementById('clear-cache').addEventListener('click', async () => {
+                if (confirm('Clear all cached PDFs? This will require re-processing uploaded documents.')) {
+                    await state.pdfCache.clear();
+                    addMessage('assistant', '🗑️ PDF cache cleared.');
+                }
             });
             
             document.getElementById('temperature').addEventListener('input', (e) => {
@@ -1957,9 +2046,16 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 
                 if (!state.whisperPipeline) {
                     voiceBtn.disabled = true;
-                    const loaded = await ensureWhisperLoaded();
+                    addMessage('assistant', '🎤 Loading Whisper STT model...');
+                    try {
+                        state.whisperPipeline = await state.pipelineFactory('automatic-speech-recognition', CONFIG.WHISPER_MODEL);
+                        addMessage('assistant', '✅ Whisper ready!');
+                    } catch (error) {
+                        addMessage('assistant', `❌ Failed to load Whisper: ${error.message}`);
+                        voiceBtn.disabled = false;
+                        return;
+                    }
                     voiceBtn.disabled = false;
-                    if (!loaded) return;
                 }
                 
                 try {
@@ -1989,21 +2085,13 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                             const arrayBuffer = await audioBlob.arrayBuffer();
                             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
                             
-                            let audioData;
-                            if (audioBuffer.numberOfChannels > 1) {
-                                const left = audioBuffer.getChannelData(0);
-                                const right = audioBuffer.getChannelData(1);
-                                audioData = new Float32Array(left.length);
-                                for (let i = 0; i < left.length; i++) {
-                                    audioData[i] = (left[i] + right[i]) / 2;
-                                }
-                            } else {
-                                audioData = audioBuffer.getChannelData(0);
-                            }
+                            let audioData = audioBuffer.numberOfChannels > 1
+                                ? new Float32Array(audioBuffer.getChannelData(0).length).map((_, i) => 
+                                    (audioBuffer.getChannelData(0)[i] + audioBuffer.getChannelData(1)[i]) / 2)
+                                : audioBuffer.getChannelData(0);
                             
-                            const targetSampleRate = 16000;
-                            if (audioBuffer.sampleRate !== targetSampleRate) {
-                                const ratio = audioBuffer.sampleRate / targetSampleRate;
+                            if (audioBuffer.sampleRate !== 16000) {
+                                const ratio = audioBuffer.sampleRate / 16000;
                                 const newLength = Math.round(audioData.length / ratio);
                                 const resampled = new Float32Array(newLength);
                                 for (let i = 0; i < newLength; i++) {
@@ -2014,28 +2102,17 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                             
                             await audioContext.close();
                             
-                            if (state.whisperPipeline) {
-                                const result = await state.whisperPipeline(audioData, {
-                                    language: 'english',
-                                    task: 'transcribe'
-                                });
-                                const transcription = result.text.trim();
-                                
-                                voiceIndicator.classList.add('hidden');
-                                voiceBtn.classList.remove('text-yellow-500');
-                                state.isTranscribing = false;
-                                
-                                if (transcription && transcription.length > 0) {
-                                    const userInput = document.getElementById('user-input');
-                                    userInput.value = transcription;
-                                    document.getElementById('char-count').textContent = `${transcription.length} / 2000`;
-                                    
-                                    handleChat(transcription);
-                                    userInput.value = '';
-                                    document.getElementById('char-count').textContent = '0 / 2000';
-                                } else {
-                                    addMessage('assistant', '🎤 Could not detect any speech. Please try again.');
-                                }
+                            const result = await state.whisperPipeline(audioData, { language: 'english', task: 'transcribe' });
+                            const transcription = result.text.trim();
+                            
+                            voiceIndicator.classList.add('hidden');
+                            voiceBtn.classList.remove('text-yellow-500');
+                            state.isTranscribing = false;
+                            
+                            if (transcription && transcription.length > 0) {
+                                handleChat(transcription);
+                            } else {
+                                addMessage('assistant', '🎤 Could not detect any speech. Please try again.');
                             }
                         } catch (error) {
                             console.error('Transcription error:', error);
