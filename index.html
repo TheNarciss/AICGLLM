@@ -251,16 +251,21 @@
                         <div>
                             <label class="text-sm text-slate-400 mb-1 block">System Prompt</label>
                             <textarea id="system-prompt" rows="6"
-                                      class="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-slate-200 resize-none focus:outline-none focus:border-blue-500">You are a helpful research assistant analyzing scientific documents.
+                                      class="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-slate-200 resize-none focus:outline-none focus:border-blue-500">You are a precise research assistant analyzing scientific documents.
 
-INSTRUCTIONS:
-1. Answer questions using the provided document context
-2. If relevant information is in the context, use it to give a detailed answer
-3. Quote or paraphrase from the documents when appropriate
-4. If you cannot find the answer in the context, say so clearly
-5. Cite which document the information comes from
+STRICT RULES:
+1. ONLY use information from the provided context - never invent facts
+2. QUOTE relevant passages using "..." when making specific claims
+3. CITE page numbers when available: [Page X] or [Source: filename]
+4. If information is NOT in the context, say: "The documents do not contain this information."
+5. For numbers, dates, or statistics: quote exactly from the source
 
-Be helpful, accurate and concise.</textarea>
+RESPONSE FORMAT:
+- Start with a direct answer to the question
+- Support claims with quotes from the context
+- End with a brief source summary
+
+NEVER hallucinate facts, dates, statistics, or claims not explicitly in the context.</textarea>
                         </div>
                     </div>
                 </div>
@@ -401,17 +406,21 @@ Be helpful, accurate and concise.</textarea>
             // Cache
             CACHE_DB_NAME: 'pdf-cache-db',
             CACHE_STORE_NAME: 'documents',
-            CACHE_VERSION: 1,
+            CACHE_VERSION: 2,           // Bumped for new chunk format with pages
             CACHE_MAX_AGE_MS: 7 * 24 * 60 * 60 * 1000, // 7 days
             
-            // Models
+            // Models - UPGRADED to 3B for better responses
             EMBEDDING_MODEL: 'Xenova/all-MiniLM-L6-v2',
             WHISPER_MODEL: 'Xenova/whisper-tiny',
-            LLM_MODEL: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
+            LLM_MODEL: 'Llama-3.2-3B-Instruct-q4f16_1-MLC',  // Upgraded from 1B to 3B
+            LLM_MODEL_FALLBACK: 'Llama-3.2-1B-Instruct-q4f16_1-MLC', // Fallback if 3B fails
             
-            // RAG
+            // RAG - Hybrid Search
             TOP_K: 10,
-            TEMPERATURE: 0.4,
+            TOP_K_SEMANTIC: 15,         // Fetch more for reranking
+            TOP_K_KEYWORD: 15,          // Keyword search candidates
+            RRF_K: 60,                  // RRF constant
+            TEMPERATURE: 0.3,           // Lower for more factual responses
             TTS_ENABLED: true,
             SELF_EVAL_ENABLED: true,
             STORAGE_KEY: 'lit-reviewer-metrics'
@@ -614,7 +623,7 @@ Be helpful, accurate and concise.</textarea>
         }
 
         // ============================================
-        // PARALLEL PDF EXTRACTOR
+        // PARALLEL PDF EXTRACTOR (with page numbers)
         // ============================================
         class ParallelPDFExtractor {
             constructor(progressCallback = null) {
@@ -676,6 +685,11 @@ Be helpful, accurate and concise.</textarea>
                     pages: pageTexts,
                     metadata: pageMetadata,
                     fullText: pageTexts.join('\n\n'),
+                    // NEW: Include pages with their numbers for chunking
+                    pagesWithNumbers: pageTexts.map((text, idx) => ({
+                        pageNum: idx + 1,
+                        text: text
+                    })),
                     numPages,
                     extractTime
                 };
@@ -689,9 +703,21 @@ Be helpful, accurate and concise.</textarea>
                     const items = textContent.items;
                     let text = '';
                     let lastY = null;
+                    let possibleChapterTitle = null;
                     
                     for (const item of items) {
                         const y = item.transform[5];
+                        const fontSize = Math.abs(item.transform[0]);
+                        
+                        // Detect chapter/section titles (usually larger font at top)
+                        if (!possibleChapterTitle && fontSize > 12 && item.str.trim().length > 3) {
+                            const str = item.str.trim();
+                            // Check if it looks like a chapter/section header
+                            if (/^(Chapter|Section|\d+\.|\d+\s|[IVX]+\.|Abstract|Introduction|Method|Result|Discussion|Conclusion)/i.test(str)) {
+                                possibleChapterTitle = str.substring(0, 100);
+                            }
+                        }
+                        
                         if (lastY !== null && Math.abs(y - lastY) > 5) {
                             text += '\n';
                         }
@@ -699,7 +725,11 @@ Be helpful, accurate and concise.</textarea>
                         lastY = y;
                     }
                     
-                    const metadata = {};
+                    const metadata = {
+                        pageNum: pageNum,
+                        chapterTitle: possibleChapterTitle
+                    };
+                    
                     if (pageNum === 1) {
                         metadata.isFirstPage = true;
                         metadata.possibleTitle = this.detectTitle(text);
@@ -708,7 +738,7 @@ Be helpful, accurate and concise.</textarea>
                     return { pageNum: index, text: text.trim(), metadata };
                 } catch (error) {
                     console.warn(`Error extracting page ${pageNum}:`, error);
-                    return { pageNum: index, text: '', metadata: {} };
+                    return { pageNum: index, text: '', metadata: { pageNum: pageNum } };
                 }
             }
             
@@ -725,10 +755,10 @@ Be helpful, accurate and concise.</textarea>
         }
 
         // ============================================
-        // SIMPLE SLIDING WINDOW CHUNKER
+        // ENHANCED CHUNKER WITH PAGE NUMBERS
         // ============================================
         class SemanticChunker {
-            chunk(text, fileName) {
+            chunk(text, fileName, pagesWithNumbers = null) {
                 const chunks = [];
                 const cleanText = text.replace(/\s+/g, ' ').trim();
                 
@@ -740,32 +770,138 @@ Be helpful, accurate and concise.</textarea>
                         text: cleanText,
                         type: 'CONTENT',
                         section: 'all',
-                        priority: 0
+                        priority: 0,
+                        pageStart: 1,
+                        pageEnd: 1
                     }];
                 }
                 
-                // 1. Create overview chunk (first 2500 chars max)
+                // If we have pages with numbers, use page-aware chunking
+                if (pagesWithNumbers && pagesWithNumbers.length > 0) {
+                    return this.chunkWithPages(pagesWithNumbers, fileName);
+                }
+                
+                // Fallback to simple chunking
+                return this.simpleChunk(cleanText, fileName);
+            }
+            
+            chunkWithPages(pagesWithNumbers, fileName) {
+                const chunks = [];
+                const chunkSize = CONFIG.CHUNK_SIZE || 800;
+                const overlap = CONFIG.CHUNK_OVERLAP || 100;
+                const minSize = CONFIG.MIN_CHUNK_SIZE || 100;
+                
+                console.log(`📐 Page-aware chunking with size=${chunkSize}, overlap=${overlap}`);
+                
+                // 1. Create overview chunk from first few pages
+                const overviewPages = pagesWithNumbers.slice(0, 3);
+                const overviewText = overviewPages.map(p => p.text).join(' ').substring(0, 2500);
+                chunks.push({
+                    text: `# Document: ${fileName}\n[Pages 1-${Math.min(3, pagesWithNumbers.length)}]\n\n${overviewText}`,
+                    type: 'OVERVIEW',
+                    section: 'overview',
+                    priority: 0,
+                    pageStart: 1,
+                    pageEnd: Math.min(3, pagesWithNumbers.length)
+                });
+                
+                // 2. Chunk page by page, tracking page numbers
+                let currentChunk = '';
+                let currentPageStart = 1;
+                let currentPageEnd = 1;
+                let chunkIndex = 0;
+                
+                for (const page of pagesWithNumbers) {
+                    const pageText = page.text.replace(/\s+/g, ' ').trim();
+                    if (!pageText) continue;
+                    
+                    // If adding this page would exceed chunk size, save current chunk
+                    if (currentChunk.length + pageText.length > chunkSize && currentChunk.length >= minSize) {
+                        chunks.push({
+                            text: `[Pages ${currentPageStart}-${currentPageEnd}] ${currentChunk.trim()}`,
+                            type: 'CONTENT',
+                            section: `pages-${currentPageStart}-${currentPageEnd}`,
+                            priority: chunkIndex + 1,
+                            pageStart: currentPageStart,
+                            pageEnd: currentPageEnd
+                        });
+                        chunkIndex++;
+                        
+                        // Keep overlap from end of current chunk
+                        const overlapText = currentChunk.slice(-overlap);
+                        currentChunk = overlapText;
+                        currentPageStart = page.pageNum;
+                    }
+                    
+                    currentChunk += ' ' + pageText;
+                    currentPageEnd = page.pageNum;
+                    
+                    // If chunk is getting too large, split it
+                    while (currentChunk.length > chunkSize) {
+                        // Find a good break point
+                        let breakPoint = chunkSize;
+                        const lastPeriod = currentChunk.lastIndexOf('. ', chunkSize);
+                        if (lastPeriod > minSize) {
+                            breakPoint = lastPeriod + 1;
+                        }
+                        
+                        const chunkText = currentChunk.slice(0, breakPoint).trim();
+                        if (chunkText.length >= minSize) {
+                            chunks.push({
+                                text: `[Page ${currentPageEnd}] ${chunkText}`,
+                                type: 'CONTENT',
+                                section: `page-${currentPageEnd}-part-${chunkIndex}`,
+                                priority: chunkIndex + 1,
+                                pageStart: currentPageEnd,
+                                pageEnd: currentPageEnd
+                            });
+                            chunkIndex++;
+                        }
+                        
+                        currentChunk = currentChunk.slice(breakPoint - overlap);
+                    }
+                }
+                
+                // Save final chunk
+                if (currentChunk.trim().length >= minSize) {
+                    chunks.push({
+                        text: `[Pages ${currentPageStart}-${currentPageEnd}] ${currentChunk.trim()}`,
+                        type: 'CONTENT',
+                        section: `pages-${currentPageStart}-${currentPageEnd}`,
+                        priority: chunkIndex + 1,
+                        pageStart: currentPageStart,
+                        pageEnd: currentPageEnd
+                    });
+                }
+                
+                console.log(`✅ Created ${chunks.length} page-aware chunks`);
+                return chunks;
+            }
+            
+            simpleChunk(cleanText, fileName) {
+                const chunks = [];
+                const chunkSize = CONFIG.CHUNK_SIZE || 800;
+                const overlap = CONFIG.CHUNK_OVERLAP || 100;
+                const minSize = CONFIG.MIN_CHUNK_SIZE || 100;
+                
+                // Overview chunk
                 const overviewLength = Math.min(2500, cleanText.length);
                 chunks.push({
                     text: `# Document: ${fileName}\n\n${cleanText.substring(0, overviewLength)}`,
                     type: 'OVERVIEW',
                     section: 'overview',
-                    priority: 0
+                    priority: 0,
+                    pageStart: 1,
+                    pageEnd: 1
                 });
                 
-                // 2. Sliding window on ENTIRE text
+                // Sliding window
                 let start = 0;
                 let chunkIndex = 0;
-                const chunkSize = CONFIG.CHUNK_SIZE || 800;
-                const overlap = CONFIG.CHUNK_OVERLAP || 150;
-                const minSize = CONFIG.MIN_CHUNK_SIZE || 100;
-                
-                console.log(`📐 Chunking with size=${chunkSize}, overlap=${overlap}, min=${minSize}`);
                 
                 while (start < cleanText.length) {
                     let end = Math.min(start + chunkSize, cleanText.length);
                     
-                    // Try to break at sentence boundary
                     if (end < cleanText.length) {
                         const searchStart = Math.max(start + minSize, end - 100);
                         const segment = cleanText.substring(searchStart, end + 50);
@@ -778,20 +914,21 @@ Be helpful, accurate and concise.</textarea>
                     const chunkText = cleanText.slice(start, end).trim();
                     
                     if (chunkText.length >= minSize) {
+                        // Estimate page number based on position
+                        const estimatedPage = Math.max(1, Math.ceil((start / cleanText.length) * 100));
                         chunks.push({
                             text: chunkText,
                             type: 'CONTENT',
                             section: `part-${chunkIndex + 1}`,
-                            priority: chunkIndex + 1
+                            priority: chunkIndex + 1,
+                            pageStart: estimatedPage,
+                            pageEnd: estimatedPage
                         });
                         chunkIndex++;
                     }
                     
-                    // Move forward
                     const step = chunkSize - overlap;
                     start += step > 0 ? step : chunkSize;
-                    
-                    // Safety: prevent infinite loop
                     if (start <= 0) start = chunkSize;
                     if (end >= cleanText.length) break;
                 }
@@ -1049,7 +1186,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         }
 
         // ============================================
-        // SMART RAG RETRIEVAL
+        // HYBRID SEARCH (Semantic + Keyword + RRF)
         // ============================================
         
         function isGenericPaperQuestion(query) {
@@ -1077,37 +1214,151 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             return genericPatterns.some(pattern => pattern.test(query.trim()));
         }
         
+        // Keyword-based search (BM25-like scoring)
+        function keywordSearch(query, topK = 15) {
+            const stopwords = new Set([
+                'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+                'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
+                'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
+                'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need',
+                'this', 'that', 'these', 'those', 'what', 'which', 'who', 'whom',
+                'paper', 'document', 'study', 'research', 'about'
+            ]);
+            
+            // Extract query terms
+            const queryTerms = query.toLowerCase()
+                .split(/[^a-z0-9]+/)
+                .filter(t => t.length > 2 && !stopwords.has(t));
+            
+            if (queryTerms.length === 0) return [];
+            
+            // Score each chunk
+            const scored = state.vectorStore.map((chunk, idx) => {
+                const text = chunk.text.toLowerCase();
+                let score = 0;
+                let matchedTerms = 0;
+                
+                for (const term of queryTerms) {
+                    // Count occurrences
+                    const regex = new RegExp(term, 'gi');
+                    const matches = (text.match(regex) || []).length;
+                    
+                    if (matches > 0) {
+                        // BM25-like scoring: tf * idf approximation
+                        const tf = matches / (text.length / 100); // Normalize by length
+                        const termScore = Math.log(1 + tf) * (1 + 1 / (queryTerms.length));
+                        score += termScore;
+                        matchedTerms++;
+                    }
+                }
+                
+                // Bonus for matching multiple terms
+                if (matchedTerms > 1) {
+                    score *= (1 + matchedTerms * 0.2);
+                }
+                
+                // Boost overview chunks slightly
+                if (chunk.type === 'OVERVIEW') {
+                    score *= 1.1;
+                }
+                
+                return { ...chunk, keywordScore: score, idx };
+            });
+            
+            // Sort by keyword score and return top K
+            return scored
+                .filter(c => c.keywordScore > 0)
+                .sort((a, b) => b.keywordScore - a.keywordScore)
+                .slice(0, topK);
+        }
+        
+        // Reciprocal Rank Fusion
+        function reciprocalRankFusion(semanticResults, keywordResults, k = 60) {
+            const scores = new Map();
+            const chunks = new Map();
+            
+            // Score from semantic search
+            semanticResults.forEach((item, rank) => {
+                const id = item.id || `sem-${rank}`;
+                scores.set(id, (scores.get(id) || 0) + 1 / (k + rank + 1));
+                chunks.set(id, item);
+            });
+            
+            // Score from keyword search
+            keywordResults.forEach((item, rank) => {
+                const id = item.id || `kw-${rank}`;
+                scores.set(id, (scores.get(id) || 0) + 1 / (k + rank + 1));
+                if (!chunks.has(id)) {
+                    chunks.set(id, item);
+                }
+            });
+            
+            // Sort by combined RRF score
+            const results = [...scores.entries()]
+                .sort((a, b) => b[1] - a[1])
+                .map(([id, rrfScore]) => {
+                    const chunk = chunks.get(id);
+                    return { ...chunk, rrfScore };
+                });
+            
+            return results;
+        }
+        
+        // Main hybrid search function
+        async function hybridSearch(query, topK = 10) {
+            const startTime = performance.now();
+            
+            // 1. Semantic search
+            const queryEmbedding = await generateEmbedding(query);
+            const semanticResults = searchVectorStore(queryEmbedding, CONFIG.TOP_K_SEMANTIC || 15);
+            
+            // 2. Keyword search
+            const keywordResults = keywordSearch(query, CONFIG.TOP_K_KEYWORD || 15);
+            
+            // 3. Fuse results with RRF
+            const fusedResults = reciprocalRankFusion(
+                semanticResults, 
+                keywordResults, 
+                CONFIG.RRF_K || 60
+            );
+            
+            // Take top K
+            const finalResults = fusedResults.slice(0, topK);
+            
+            const searchTime = performance.now() - startTime;
+            console.log(`🔍 Hybrid search completed in ${searchTime.toFixed(0)}ms`);
+            console.log(`   Semantic: ${semanticResults.length}, Keyword: ${keywordResults.length}, Final: ${finalResults.length}`);
+            
+            return finalResults;
+        }
+        
         async function smartPaperRetrieval(userQuery, topK = 10) {
             if (state.vectorStore.length === 0) return [];
             
             const isGeneric = isGenericPaperQuestion(userQuery);
             
             if (isGeneric) {
+                // For generic questions, prioritize overview chunks
                 const overviewChunks = state.vectorStore
                     .filter(c => c.type === 'OVERVIEW' || c.type === 'ABSTRACT')
-                    .map(c => ({ ...c, similarity: 0.98 }));
+                    .map(c => ({ ...c, similarity: 0.98, rrfScore: 1.0 }));
                 
                 const firstChunks = state.vectorStore
                     .filter(c => c.type !== 'OVERVIEW' && c.type !== 'ABSTRACT')
                     .slice(0, Math.min(5, topK - overviewChunks.length))
-                    .map(c => ({ ...c, similarity: 0.85 }));
+                    .map(c => ({ ...c, similarity: 0.85, rrfScore: 0.5 }));
                 
                 const combined = [...overviewChunks, ...firstChunks].slice(0, topK);
                 
                 if (combined.length > 0) {
+                    console.log('📋 Generic query - returning overview chunks');
                     return combined;
                 }
             }
             
-            let enhancedQuery = userQuery;
-            const vaguePatterns = [/^what is this/i, /^tell me about this/i, /^summarize this/i];
-            
-            if (vaguePatterns.some(p => p.test(userQuery))) {
-                enhancedQuery = userQuery + " document abstract introduction summary content main findings";
-            }
-            
-            const queryEmbedding = await generateEmbedding(enhancedQuery);
-            return searchVectorStore(queryEmbedding, topK);
+            // Use hybrid search for specific queries
+            console.log('🔍 Using hybrid search for specific query');
+            return await hybridSearch(userQuery, topK);
         }
 
         // ============================================
@@ -1353,15 +1604,28 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             const panel = document.getElementById('context-panel');
             const container = document.getElementById('context-chunks');
             
-            container.innerHTML = chunks.map((chunk, i) => `
+            container.innerHTML = chunks.map((chunk, i) => {
+                const pageInfo = chunk.pageStart ? 
+                    (chunk.pageStart === chunk.pageEnd ? 
+                        `Page ${chunk.pageStart}` : 
+                        `Pages ${chunk.pageStart}-${chunk.pageEnd}`) : 
+                    '';
+                const similarity = chunk.similarity ? `${(chunk.similarity * 100).toFixed(1)}%` : 
+                                   chunk.rrfScore ? `RRF: ${chunk.rrfScore.toFixed(3)}` : '';
+                
+                return `
                 <div class="bg-slate-700/50 rounded p-2 text-xs">
                     <div class="flex items-center justify-between mb-1">
-                        <span class="text-blue-400 font-medium">${chunk.source} <span class="text-slate-500">(${chunk.type}${chunk.section ? ': ' + chunk.section : ''})</span></span>
-                        <span class="text-slate-500">${(chunk.similarity * 100).toFixed(1)}% match</span>
+                        <span class="text-blue-400 font-medium">
+                            ${chunk.source} 
+                            <span class="text-cyan-400">[${pageInfo}]</span>
+                            <span class="text-slate-500">(${chunk.type}${chunk.section ? ': ' + chunk.section : ''})</span>
+                        </span>
+                        <span class="text-slate-500">${similarity} match</span>
                     </div>
                     <p class="text-slate-400 line-clamp-2">${chunk.text.substring(0, 150)}...</p>
                 </div>
-            `).join('');
+            `}).join('');
             
             panel.classList.remove('hidden');
         }
@@ -1439,20 +1703,39 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 
                 const webllm = await import('https://esm.run/@mlc-ai/web-llm');
                 
-                progressText.textContent = 'Loading LLM model...';
+                progressText.textContent = 'Loading LLM model (3B)...';
                 
-                state.llmEngine = await webllm.CreateMLCEngine(CONFIG.LLM_MODEL, {
-                    initProgressCallback: (progress) => {
-                        const pct = Math.round(45 + (progress.progress * 55));
-                        progressPercent.textContent = `${pct}%`;
-                        progressBar.style.width = `${pct}%`;
-                        progressText.textContent = progress.text || 'Loading LLM...';
-                    }
-                });
+                // Try to load 3B model first, fallback to 1B if it fails
+                let llmModel = CONFIG.LLM_MODEL;
+                try {
+                    state.llmEngine = await webllm.CreateMLCEngine(llmModel, {
+                        initProgressCallback: (progress) => {
+                            const pct = Math.round(45 + (progress.progress * 55));
+                            progressPercent.textContent = `${pct}%`;
+                            progressBar.style.width = `${pct}%`;
+                            progressText.textContent = progress.text || 'Loading LLM (3B)...';
+                        }
+                    });
+                    console.log('✅ Loaded 3B model successfully');
+                } catch (e) {
+                    console.warn('⚠️ 3B model failed, falling back to 1B:', e.message);
+                    progressText.textContent = 'Falling back to 1B model...';
+                    llmModel = CONFIG.LLM_MODEL_FALLBACK;
+                    
+                    state.llmEngine = await webllm.CreateMLCEngine(llmModel, {
+                        initProgressCallback: (progress) => {
+                            const pct = Math.round(45 + (progress.progress * 55));
+                            progressPercent.textContent = `${pct}%`;
+                            progressBar.style.width = `${pct}%`;
+                            progressText.textContent = progress.text || 'Loading LLM (1B fallback)...';
+                        }
+                    });
+                    console.log('✅ Loaded 1B fallback model');
+                }
                 
                 state.modelsLoaded = true;
                 modelIndicator.className = 'w-3 h-3 rounded-full bg-green-500';
-                modelText.textContent = 'Models ready!';
+                modelText.textContent = `Models ready! (${llmModel.includes('3B') ? '3B' : '1B'})`;
                 modelText.className = 'text-sm text-green-400';
                 modelProgress.classList.add('hidden');
                 loadBtn.classList.add('hidden');
@@ -1460,7 +1743,8 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 document.getElementById('user-input').disabled = false;
                 document.getElementById('send-btn').disabled = false;
                 
-                addMessage('assistant', '🎉 Models loaded successfully! I\'m ready to help you analyze your research papers.\n\n📄 **Upload PDFs** using the drop zone on the left.\n\n⚡ **Fast processing** - Large documents (100+ pages) are now processed much faster with intelligent caching!');
+                const modelInfo = llmModel.includes('3B') ? '🚀 Using **3B model** for better accuracy' : '⚡ Using **1B model** for faster responses';
+                addMessage('assistant', `🎉 Models loaded successfully! ${modelInfo}\n\n📄 **Upload PDFs** using the drop zone on the left.\n\n⚡ **New features:**\n- Hybrid search (semantic + keyword)\n- Page-aware chunking with citations\n- Improved grounding and citations`);
                 
             } catch (error) {
                 console.error('Error loading models:', error);
@@ -1550,13 +1834,14 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         continue;
                     }
                     
-                    // 2. Semantic chunking
+                    // 2. Semantic chunking with page numbers
                     updateProcessingProgressEnhanced('chunking', 0, 1, 'Analyzing document structure...');
                     
                     console.log('📝 Full text length before chunking:', extracted.fullText.length);
                     
                     const chunker = new SemanticChunker();
-                    const rawChunks = chunker.chunk(extracted.fullText, file.name);
+                    // Pass pagesWithNumbers for page-aware chunking
+                    const rawChunks = chunker.chunk(extracted.fullText, file.name, extracted.pagesWithNumbers);
                     
                     updateProcessingProgressEnhanced('chunking', 1, 1, `Created ${rawChunks.length} semantic chunks`);
                     
@@ -1581,6 +1866,8 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                             source: file.name,
                             type: chunk.type,
                             section: chunk.section,
+                            pageStart: chunk.pageStart || 1,
+                            pageEnd: chunk.pageEnd || 1,
                             id: `${file.name}-${chunk.type}-${chunk.priority}`
                         });
                         
@@ -1616,6 +1903,8 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                                 source: file.name,
                                 type: chunk.type,
                                 section: chunk.section,
+                                pageStart: chunk.pageStart || 1,
+                                pageEnd: chunk.pageEnd || 1,
                                 id: `${file.name}-${chunk.type}-${chunk.priority}`
                             });
                         });
@@ -1721,12 +2010,19 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     
                     if (relevantChunks.length > 0) {
                         showContextPanel(relevantChunks);
-                        contextText = relevantChunks.map((chunk, i) => 
-                            `[Source: ${chunk.source}${chunk.section ? ' - ' + chunk.section : ''}]\n${chunk.text}`
-                        ).join('\n\n---\n\n');
                         
-                        retrievalMetrics.topSimilarity = relevantChunks[0].similarity;
-                        retrievalMetrics.avgSimilarity = relevantChunks.reduce((sum, c) => sum + c.similarity, 0) / relevantChunks.length;
+                        // Build context with page numbers for better citations
+                        contextText = relevantChunks.map((chunk, i) => {
+                            const pageInfo = chunk.pageStart ? 
+                                (chunk.pageStart === chunk.pageEnd ? 
+                                    `Page ${chunk.pageStart}` : 
+                                    `Pages ${chunk.pageStart}-${chunk.pageEnd}`) : 
+                                '';
+                            return `[Source: ${chunk.source}${pageInfo ? ' | ' + pageInfo : ''}${chunk.section ? ' | Section: ' + chunk.section : ''}]\n${chunk.text}`;
+                        }).join('\n\n---\n\n');
+                        
+                        retrievalMetrics.topSimilarity = relevantChunks[0].similarity || relevantChunks[0].rrfScore || 0;
+                        retrievalMetrics.avgSimilarity = relevantChunks.reduce((sum, c) => sum + (c.similarity || c.rrfScore || 0), 0) / relevantChunks.length;
                         retrievalMetrics.sourceDiversity = new Set(relevantChunks.map(c => c.source)).size;
                     }
                 }
@@ -1870,7 +2166,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         }
                     });
                 }
-                console.log('📊 Advanced metrics:', advancedMetrics);
+
                 runSelfEvaluation(queryId, userMessage, contextText, fullResponse);
                 
                 if (CONFIG.TTS_ENABLED && window.speechSynthesis && fullResponse.length < 800) {
@@ -1907,7 +2203,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 `;
             }
         };
-        
+
         // ============================================
         // EVENT LISTENERS
         // ============================================
