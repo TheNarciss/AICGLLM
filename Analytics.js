@@ -83,53 +83,107 @@ export class AdvancedAnalytics {
     }
     
     /**
-     * Calculate context utilization rate
+     * Calculate context utilization rate (IMPROVED)
+     * Uses stemming simulation and n-grams for better matching
      */
     calculateContextUtilization(response, contextChunks) {
-        // New definition: proportion of meaningful response tokens
-        // that appear in the provided context. This is more
-        // interpretable than dividing by total context size.
         if (!contextChunks || contextChunks.length === 0) return 0;
 
         const stopwords = new Set([
-            'the','and','to','of','in','a','is','it','that','for','on','with','as','are','was','were','be','by','this','which','or','an','from','at','but','not','have','has','had','we','they','their','its','may','can','these','those','such'
+            'the','and','to','of','in','a','is','it','that','for','on','with','as','are','was','were','be','by',
+            'this','which','or','an','from','at','but','not','have','has','had','we','they','their','its','may',
+            'can','these','those','such','been','being','would','could','should','about','into','through','during',
+            'before','after','above','below','between','under','again','further','then','once','here','there',
+            'when','where','why','how','all','each','few','more','most','other','some','only','own','same','than',
+            'too','very','just','also','now','paper','document','study','research','results','section','chapter'
         ]);
+
+        // Simple stemming: remove common suffixes
+        const stem = (word) => {
+            return word
+                .replace(/ing$/, '')
+                .replace(/tion$/, 't')
+                .replace(/sion$/, 's')
+                .replace(/ness$/, '')
+                .replace(/ment$/, '')
+                .replace(/able$/, '')
+                .replace(/ible$/, '')
+                .replace(/ies$/, 'y')
+                .replace(/es$/, '')
+                .replace(/s$/, '');
+        };
 
         const tokenize = (text) => (text || '').toLowerCase().split(/[^a-z0-9]+/).filter(t => t && t.length > 0);
 
-        const responseTokens = tokenize(response).filter(t => t.length > 2 && !stopwords.has(t));
+        const responseTokens = tokenize(response).filter(t => t.length > 3 && !stopwords.has(t));
         if (responseTokens.length === 0) return 0;
 
         const contextText = contextChunks.map(c => c.text || '').join(' ');
-        const contextSet = new Set(tokenize(contextText));
+        const contextTokens = tokenize(contextText);
+        
+        // Create context set with stems
+        const contextSet = new Set();
+        contextTokens.forEach(t => {
+            contextSet.add(t);
+            contextSet.add(stem(t));
+        });
 
+        // Match response tokens (with stemming)
         let used = 0;
-        responseTokens.forEach(tok => { if (contextSet.has(tok)) used++; });
+        responseTokens.forEach(tok => {
+            if (contextSet.has(tok) || contextSet.has(stem(tok))) {
+                used++;
+            }
+        });
 
         return used / responseTokens.length;
     }
     
     /**
-     * Calculate answer grounding score (how well the response is based on context)
+     * Calculate answer grounding score (IMPROVED)
+     * Uses bigrams and flexible matching
      */
     calculateGrounding(response, contextChunks) {
         if (!contextChunks || contextChunks.length === 0) return 0;
         
-        const responseSentences = response.split(/[.!?]+/).filter(s => s.trim().length > 20);
+        const responseSentences = response.split(/[.!?]+/).filter(s => s.trim().length > 15);
         if (responseSentences.length === 0) return 0;
         
-        let groundedSentences = 0;
         const contextText = contextChunks.map(c => c.text.toLowerCase()).join(' ');
         
+        // Build bigram set from context for better matching
+        const contextWords = contextText.split(/\s+/).filter(w => w.length > 2);
+        const contextBigrams = new Set();
+        for (let i = 0; i < contextWords.length - 1; i++) {
+            contextBigrams.add(contextWords[i] + ' ' + contextWords[i+1]);
+        }
+        const contextWordSet = new Set(contextWords);
+        
+        let totalScore = 0;
+        
         responseSentences.forEach(sentence => {
-            const words = sentence.toLowerCase().split(/\s+/).filter(w => w.length > 4);
-            const matches = words.filter(w => contextText.includes(w));
-            if (matches.length / words.length > 0.3) {
-                groundedSentences++;
+            const words = sentence.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+            if (words.length === 0) return;
+            
+            // Word matching (weight: 0.6)
+            const wordMatches = words.filter(w => contextWordSet.has(w)).length;
+            const wordScore = words.length > 0 ? wordMatches / words.length : 0;
+            
+            // Bigram matching (weight: 0.4) - catches phrases
+            let bigramMatches = 0;
+            for (let i = 0; i < words.length - 1; i++) {
+                if (contextBigrams.has(words[i] + ' ' + words[i+1])) {
+                    bigramMatches++;
+                }
             }
+            const bigramScore = words.length > 1 ? bigramMatches / (words.length - 1) : 0;
+            
+            // Combined score
+            const sentenceScore = (wordScore * 0.6) + (bigramScore * 0.4);
+            totalScore += sentenceScore;
         });
         
-        return groundedSentences / responseSentences.length;
+        return totalScore / responseSentences.length;
     }
     
     /**
@@ -191,27 +245,78 @@ export class AdvancedAnalytics {
     }
     
     /**
-     * Detect potential hallucinations (content not in context)
+     * Detect potential hallucinations (IMPROVED)
+     * More nuanced detection with different thresholds for different sentence types
      */
     detectHallucination(response, contextChunks) {
         if (!contextChunks || contextChunks.length === 0) return 1;
         
         const contextText = contextChunks.map(c => c.text.toLowerCase()).join(' ');
-        const responseSentences = response.split(/[.!?]+/).filter(s => s.trim().length > 20);
+        const responseSentences = response.split(/[.!?]+/).filter(s => s.trim().length > 15);
         
-        let possibleHallucinations = 0;
+        if (responseSentences.length === 0) return 0;
+        
+        // Build context word set with simple stemming
+        const stem = (word) => word.replace(/ing$|tion$|sion$|ness$|ment$|able$|ible$|ies$|es$|s$/, '');
+        const contextWords = contextText.split(/\s+/).filter(w => w.length > 3);
+        const contextSet = new Set();
+        contextWords.forEach(w => {
+            contextSet.add(w);
+            contextSet.add(stem(w));
+        });
+        
+        // Patterns that indicate factual claims (higher risk for hallucination)
+        const factualPatterns = [
+            /\b(discovered|invented|published|founded|created)\s+(?:in|by)\b/i,
+            /\b(in|since|from)\s+\d{4}\b/i,  // Year mentions
+            /\b\d+(?:\.\d+)?\s*%/,  // Percentages
+            /\b(always|never|every|all|none)\b/i,  // Absolutes
+            /\b(first|only|largest|smallest|best|worst)\b/i,  // Superlatives
+            /\b(according to|stated that|claimed that)\b/i,
+        ];
+        
+        // Patterns that are usually safe (general statements)
+        const safePatterns = [
+            /\b(may|might|could|can|often|sometimes|generally|typically)\b/i,
+            /\b(this (paper|document|study|book))\b/i,
+            /\b(the (author|text|content) (discusses|describes|explains|presents))\b/i,
+        ];
+        
+        let hallucinationScore = 0;
         
         responseSentences.forEach(sentence => {
-            const words = sentence.toLowerCase().split(/\s+/).filter(w => w.length > 4);
-            const matches = words.filter(w => contextText.includes(w));
+            const sentenceLower = sentence.toLowerCase();
+            const words = sentenceLower.split(/\s+/).filter(w => w.length > 3);
             
-            // If less than 20% of content words are in context, might be hallucination
-            if (matches.length / words.length < 0.2) {
-                possibleHallucinations++;
+            if (words.length === 0) return;
+            
+            // Check for safe patterns (skip these)
+            const isSafe = safePatterns.some(p => p.test(sentenceLower));
+            if (isSafe) return;
+            
+            // Check word overlap with context
+            let matches = 0;
+            words.forEach(w => {
+                if (contextSet.has(w) || contextSet.has(stem(w))) {
+                    matches++;
+                }
+            });
+            
+            const overlapRatio = matches / words.length;
+            
+            // Higher threshold for factual claims
+            const isFactualClaim = factualPatterns.some(p => p.test(sentenceLower));
+            const threshold = isFactualClaim ? 0.25 : 0.15;
+            
+            if (overlapRatio < threshold) {
+                // Weight factual claims more heavily
+                hallucinationScore += isFactualClaim ? 1.5 : 1;
             }
         });
         
-        return responseSentences.length > 0 ? possibleHallucinations / responseSentences.length : 0;
+        // Normalize to 0-1 range
+        const maxScore = responseSentences.length * 1.5;
+        return Math.min(1, hallucinationScore / responseSentences.length);
     }
     
     /**

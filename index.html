@@ -1870,7 +1870,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         }
                     });
                 }
-
+                console.log('📊 Advanced metrics:', advancedMetrics);
                 runSelfEvaluation(queryId, userMessage, contextText, fullResponse);
                 
                 if (CONFIG.TTS_ENABLED && window.speechSynthesis && fullResponse.length < 800) {
@@ -1907,7 +1907,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 `;
             }
         };
-
+        
         // ============================================
         // EVENT LISTENERS
         // ============================================

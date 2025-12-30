@@ -1,5 +1,6 @@
 // analytics.worker.js
 // Web Worker to compute advanced analytics off the main thread
+// IMPROVED VERSION with stemming and better hallucination detection
 
 self.onmessage = async (e) => {
   const { action, payload } = e.data;
@@ -16,6 +17,21 @@ self.onmessage = async (e) => {
 // Helper tokenization
 function tokenize(text) {
   return (text || '').toLowerCase().split(/[^a-z0-9]+/).filter(t => t && t.length > 0);
+}
+
+// Simple stemming: remove common suffixes
+function stem(word) {
+  return word
+    .replace(/ing$/, '')
+    .replace(/tion$/, 't')
+    .replace(/sion$/, 's')
+    .replace(/ness$/, '')
+    .replace(/ment$/, '')
+    .replace(/able$/, '')
+    .replace(/ible$/, '')
+    .replace(/ies$/, 'y')
+    .replace(/es$/, '')
+    .replace(/s$/, '');
 }
 
 function calculateDiversity(text) {
@@ -43,34 +59,83 @@ function calculateRepetition(text) {
   return repetitionCount / sentences.length;
 }
 
+// IMPROVED: Context utilization with stemming
 function calculateContextUtilization(response, contextChunks) {
   if (!contextChunks || contextChunks.length === 0) return 0;
+  
   const stopwords = new Set([
-    'the','and','to','of','in','a','is','it','that','for','on','with','as','are','was','were','be','by','this','which','or','an','from','at','but','not','have','has','had','we','they','their','its','may','can','these','those','such'
+    'the','and','to','of','in','a','is','it','that','for','on','with','as','are','was','were','be','by',
+    'this','which','or','an','from','at','but','not','have','has','had','we','they','their','its','may',
+    'can','these','those','such','been','being','would','could','should','about','into','through','during',
+    'before','after','above','below','between','under','again','further','then','once','here','there',
+    'when','where','why','how','all','each','few','more','most','other','some','only','own','same','than',
+    'too','very','just','also','now','paper','document','study','research','results','section','chapter'
   ]);
-  const responseTokens = tokenize(response).filter(t => t.length > 2 && !stopwords.has(t));
+
+  const responseTokens = tokenize(response).filter(t => t.length > 3 && !stopwords.has(t));
   if (responseTokens.length === 0) return 0;
+
   const contextText = contextChunks.map(c => c.text || '').join(' ');
-  const contextSet = new Set(tokenize(contextText));
+  const contextTokens = tokenize(contextText);
+  
+  // Create context set with stems
+  const contextSet = new Set();
+  contextTokens.forEach(t => {
+    contextSet.add(t);
+    contextSet.add(stem(t));
+  });
+
+  // Match response tokens (with stemming)
   let used = 0;
-  responseTokens.forEach(tok => { if (contextSet.has(tok)) used++; });
+  responseTokens.forEach(tok => {
+    if (contextSet.has(tok) || contextSet.has(stem(tok))) {
+      used++;
+    }
+  });
+
   return used / responseTokens.length;
 }
 
+// IMPROVED: Answer grounding with bigrams
 function calculateGrounding(response, contextChunks) {
   if (!contextChunks || contextChunks.length === 0) return 0;
-  const responseSentences = response.split(/[.!?]+/).filter(s => s.trim().length > 20);
+  
+  const responseSentences = response.split(/[.!?]+/).filter(s => s.trim().length > 15);
   if (responseSentences.length === 0) return 0;
-  let groundedSentences = 0;
-  const contextText = contextChunks.map(c => c.text.toLowerCase()).join(' ');
+  
+  const contextText = contextChunks.map(c => (c.text || '').toLowerCase()).join(' ');
+  
+  // Build bigram set from context
+  const contextWords = contextText.split(/\s+/).filter(w => w.length > 2);
+  const contextBigrams = new Set();
+  for (let i = 0; i < contextWords.length - 1; i++) {
+    contextBigrams.add(contextWords[i] + ' ' + contextWords[i+1]);
+  }
+  const contextWordSet = new Set(contextWords);
+  
+  let totalScore = 0;
+  
   responseSentences.forEach(sentence => {
-    const words = sentence.toLowerCase().split(/\s+/).filter(w => w.length > 4);
-    const matches = words.filter(w => contextText.includes(w));
-    if (words.length > 0 && (matches.length / words.length) > 0.3) {
-      groundedSentences++;
+    const words = sentence.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    if (words.length === 0) return;
+    
+    // Word matching (weight: 0.6)
+    const wordMatches = words.filter(w => contextWordSet.has(w)).length;
+    const wordScore = words.length > 0 ? wordMatches / words.length : 0;
+    
+    // Bigram matching (weight: 0.4)
+    let bigramMatches = 0;
+    for (let i = 0; i < words.length - 1; i++) {
+      if (contextBigrams.has(words[i] + ' ' + words[i+1])) {
+        bigramMatches++;
+      }
     }
+    const bigramScore = words.length > 1 ? bigramMatches / (words.length - 1) : 0;
+    
+    totalScore += (wordScore * 0.6) + (bigramScore * 0.4);
   });
-  return groundedSentences / responseSentences.length;
+  
+  return totalScore / responseSentences.length;
 }
 
 function calculateCitationCoverage(sources, contextChunks) {
@@ -109,18 +174,69 @@ function calculateQueryComplexity(query) {
   };
 }
 
+// IMPROVED: Hallucination detection with pattern awareness
 function detectHallucination(response, contextChunks) {
   if (!contextChunks || contextChunks.length === 0) return 1;
-  const contextText = contextChunks.map(c => c.text.toLowerCase()).join(' ');
-  const responseSentences = response.split(/[.!?]+/).filter(s => s.trim().length > 20);
+  
+  const contextText = contextChunks.map(c => (c.text || '').toLowerCase()).join(' ');
+  const responseSentences = response.split(/[.!?]+/).filter(s => s.trim().length > 15);
+  
   if (responseSentences.length === 0) return 0;
-  let possibleHallucinations = 0;
-  responseSentences.forEach(sentence => {
-    const words = sentence.toLowerCase().split(/\s+/).filter(w => w.length > 4);
-    const matches = words.filter(w => contextText.includes(w));
-    if (words.length === 0 || (matches.length / words.length) < 0.2) possibleHallucinations++;
+  
+  // Build context word set with stemming
+  const contextWords = contextText.split(/\s+/).filter(w => w.length > 3);
+  const contextSet = new Set();
+  contextWords.forEach(w => {
+    contextSet.add(w);
+    contextSet.add(stem(w));
   });
-  return responseSentences.length > 0 ? possibleHallucinations / responseSentences.length : 0;
+  
+  // Patterns that indicate factual claims (higher risk)
+  const factualPatterns = [
+    /\b(discovered|invented|published|founded|created)\s+(?:in|by)\b/i,
+    /\b(in|since|from)\s+\d{4}\b/i,
+    /\b\d+(?:\.\d+)?\s*%/,
+    /\b(always|never|every|all|none)\b/i,
+    /\b(first|only|largest|smallest|best|worst)\b/i,
+  ];
+  
+  // Safe patterns (general statements)
+  const safePatterns = [
+    /\b(may|might|could|can|often|sometimes|generally|typically)\b/i,
+    /\b(this (paper|document|study|book))\b/i,
+    /\b(the (author|text|content) (discusses|describes|explains|presents))\b/i,
+  ];
+  
+  let hallucinationScore = 0;
+  
+  responseSentences.forEach(sentence => {
+    const sentenceLower = sentence.toLowerCase();
+    const words = sentenceLower.split(/\s+/).filter(w => w.length > 3);
+    
+    if (words.length === 0) return;
+    
+    // Skip safe patterns
+    const isSafe = safePatterns.some(p => p.test(sentenceLower));
+    if (isSafe) return;
+    
+    // Check word overlap
+    let matches = 0;
+    words.forEach(w => {
+      if (contextSet.has(w) || contextSet.has(stem(w))) {
+        matches++;
+      }
+    });
+    
+    const overlapRatio = matches / words.length;
+    const isFactualClaim = factualPatterns.some(p => p.test(sentenceLower));
+    const threshold = isFactualClaim ? 0.25 : 0.15;
+    
+    if (overlapRatio < threshold) {
+      hallucinationScore += isFactualClaim ? 1.5 : 1;
+    }
+  });
+  
+  return Math.min(1, hallucinationScore / responseSentences.length);
 }
 
 function calculateCompleteness(query, response) {
