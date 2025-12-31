@@ -106,7 +106,7 @@
                 </div>
             </div>
             <div class="flex items-center gap-4">
-                <a href="dashboard.html" class="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 text-purple-400 rounded-lg hover:bg-purple-600/30 transition-colors text-sm">
+                <a href="./dashboard.html" class="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 text-purple-400 rounded-lg hover:bg-purple-600/30 transition-colors text-sm">
                     <i class="fas fa-chart-line"></i>
                     <span>Dashboard</span>
                 </a>
@@ -412,7 +412,7 @@ NEVER hallucinate facts, dates, statistics, or claims not explicitly in the cont
             // Models - UPGRADED to 3B for better responses
             EMBEDDING_MODEL: 'Xenova/all-MiniLM-L6-v2',
             WHISPER_MODEL: 'Xenova/whisper-tiny',
-            LLM_MODEL: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',  // Upgraded from 1B to 3B
+            LLM_MODEL: 'Llama-3.2-3B-Instruct-q4f16_1-MLC',  // Upgraded from 1B to 3B
             LLM_MODEL_FALLBACK: 'Llama-3.2-1B-Instruct-q4f16_1-MLC', // Fallback if 3B fails
             
             // RAG - Hybrid Search
@@ -452,7 +452,7 @@ NEVER hallucinate facts, dates, statistics, or claims not explicitly in the cont
         // Initialize analytics worker
         let analyticsWorker = null;
         try {
-            analyticsWorker = new Worker('analytics.worker.js', { type: 'module' });
+            analyticsWorker = new Worker('./analytics.worker.js', { type: 'module' });
             analyticsWorker.onmessage = async (ev) => {
                 const { id, advanced, error } = ev.data || {};
                 if (error) {
@@ -486,7 +486,7 @@ NEVER hallucinate facts, dates, statistics, or claims not explicitly in the cont
         let embeddingsWorker = null;
         let embeddingsWorkerReady = false;
         try {
-            embeddingsWorker = new Worker('embeddings.worker.js', { type: 'module' });
+            embeddingsWorker = new Worker('./embeddings.worker.js', { type: 'module' });
             embeddingsWorker.onmessage = (ev) => {
                 const msg = ev.data || {};
                 if (msg.action === 'inited') {
@@ -1123,20 +1123,26 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     const evalResult = JSON.parse(jsonMatch[0]);
                     const clamp = (v) => Math.max(1, Math.min(5, parseInt(v) || 3));
                     
+                    const selfEvalResult = {
+                        faithfulness: clamp(evalResult.faithfulness),
+                        relevance: clamp(evalResult.relevance),
+                        coherence: clamp(evalResult.coherence),
+                        timestamp: Date.now()
+                    };
+                    
+                    console.log('🎯 Self-evaluation:', selfEvalResult);
+                    
                     const query = state.queriesMetrics.find(q => q.id === queryId);
                     if (query) {
-                        query.selfEval = {
-                            faithfulness: clamp(evalResult.faithfulness),
-                            relevance: clamp(evalResult.relevance),
-                            coherence: clamp(evalResult.coherence),
-                            timestamp: Date.now()
-                        };
+                        query.selfEval = selfEvalResult;
                         
                         if (firebaseSessionRef) {
                             const selfEvalRef = ref(database, `sessions/${firebaseSessionRef.key}/queries/${queryId}/selfEval`);
                             await set(selfEvalRef, query.selfEval);
                         }
                     }
+                } else {
+                    console.warn('⚠️ Self-eval: Could not parse JSON from:', evalText);
                 }
             } catch (e) {
                 console.error('Self-evaluation error:', e);
@@ -2208,7 +2214,19 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     topSimilarity: retrievalMetrics.topSimilarity,
                     avgSimilarity: retrievalMetrics.avgSimilarity
                 });
-                console.log('📊 Advanced metrics:', advancedMetrics);
+                
+                // Log advanced metrics
+                console.log('📊 Advanced metrics:', {
+                    contextUtilization: (advancedMetrics.contextUtilization * 100).toFixed(1) + '%',
+                    answerGrounding: (advancedMetrics.answerGrounding * 100).toFixed(1) + '%',
+                    hallucinationScore: (advancedMetrics.hallucinationScore * 100).toFixed(1) + '%',
+                    retrievalPrecision: (advancedMetrics.retrievalPrecision * 100).toFixed(1) + '%',
+                    completeness: (advancedMetrics.completeness * 100).toFixed(1) + '%',
+                    throughput: advancedMetrics.throughput?.toFixed(1) + ' tok/s',
+                    queryType: advancedMetrics.queryType,
+                    raw: advancedMetrics
+                });
+                
                 const queryMetrics = {
                     id: queryId,
                     timestamp: Date.now(),
