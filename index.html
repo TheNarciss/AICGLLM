@@ -234,7 +234,7 @@
                         <div>
                             <label class="text-sm text-slate-400 mb-1 block">System Prompt (Active)</label>
                             <textarea id="system-prompt" rows="6"
-                                      class="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-xs text-slate-300 resize-none focus:outline-none focus:border-blue-500" disabled>ROLE: You are a strict extraction engine. You are NOT a creative writer.
+                                      class="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-xs text-slate-300 resize-none focus:outline-none focus:border-blue-500" >ROLE: You are a strict extraction engine. You are NOT a creative writer.
 ROLE: You are a strict extraction engine. You are NOT a creative writer.
 TASK: Summarize the provided text below based strictly on the user's question.
 
@@ -316,7 +316,7 @@ FORMATTING:
                                       placeholder="Ask about your papers or request a literature review..."
                                       rows="2"
                                       class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 pr-12 text-slate-200 resize-none focus:outline-none focus:border-blue-500 placeholder-slate-500"
-                                      disabled></textarea>
+                                      ></textarea>
                             <button id="voice-btn" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-blue-400 transition-colors" title="Voice Input">
                                 <i class="fas fa-microphone text-lg"></i>
                             </button>
@@ -2117,7 +2117,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     if (relevantChunks.length > 0) {
                         showContextPanel(relevantChunks);
                         
-                        const MAX_CONTEXT_CHARS = 10000;
+                        const MAX_CONTEXT_CHARS = 8000;
                         let totalChars = 0;
                         const usedChunks = [];
                         
@@ -2146,10 +2146,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                             }
                         }
                         
-                        if (contextText.length > 6000) {
-                            console.log("✂️ Contexte tronqué à 6000 caractères.");
-                            contextText = contextText.substring(0, 6000) + "\n...(truncated)...";
-                        }
+                   
                         // ------------------------------------
 
                         retrievalMetrics.topSimilarity = relevantChunks[0].similarity || relevantChunks[0].rrfScore || 0;
@@ -2190,11 +2187,11 @@ YOUR ANSWER (Based ONLY on Source Text):`;
                 const generationStart = performance.now();
                 const response = await state.llmEngine.chat.completions.create({
                     messages: messages,
-                    temperature: temperature, // Very strict
+                    temperature: CONFIG.TEMPERATURE, // Very strict
                     max_tokens: 512,
                     stream: true,
                     repetition_penalty: 1.2, // Strong penalty for small models
-                    top_p: 0.1
+                    top_p: 0.5
                 });
                 
                 hideTypingIndicator();
@@ -2269,7 +2266,7 @@ YOUR ANSWER (Based ONLY on Source Text):`;
                 messageDiv.querySelector('.prose').innerHTML += sourcesHtml + feedbackHtml;
                 streamingContent.removeAttribute('id');
                 
-                state.chatHistory.push({ role: 'assistant', content: fullResponse });
+             
                 
                 // Track metrics
                 const advancedMetrics = state.analytics.trackQuery({
