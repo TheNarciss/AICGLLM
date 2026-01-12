@@ -35,7 +35,7 @@
         .prose h3 { font-size: 1.1em; font-weight: bold; margin: 0.5em 0; }
         .prose p { margin: 0.5em 0; }
         .prose ul, .prose ol { margin: 0.5em 0; padding-left: 1.5em; }
-        .prose li { margin: 0.25em 0; }
+        .prose li { margin: 0.25em 0; list-style-type: disc; }
         .prose code { background: #374151; padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.9em; }
         .prose pre { background: #1e293b; padding: 1em; border-radius: 8px; overflow-x: auto; margin: 0.5em 0; }
         .prose blockquote { border-left: 3px solid #3b82f6; padding-left: 1em; margin: 0.5em 0; opacity: 0.9; }
@@ -78,24 +78,9 @@
             background: rgba(168, 85, 247, 0.2);
             color: #c084fc;
         }
-        
-        /* Quick start banner */
-        .quick-start-banner {
-            background: linear-gradient(90deg, rgba(34, 197, 94, 0.15), rgba(59, 130, 246, 0.15));
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            border-radius: 8px;
-            padding: 12px;
-            margin: 8px 0;
-            animation: banner-fade-in 0.5s ease-out;
-        }
-        @keyframes banner-fade-in {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
-    <!-- Header -->
     <header class="bg-slate-800 border-b border-slate-700 px-6 py-4">
         <div class="max-w-7xl mx-auto flex items-center justify-between">
             <div class="flex items-center gap-3">
@@ -120,9 +105,7 @@
 
     <main class="max-w-7xl mx-auto p-6">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Left Panel: Documents & Memory -->
             <div class="lg:col-span-1 space-y-6">
-                <!-- PDF Upload Zone -->
                 <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
                     <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
                         <i class="fas fa-file-pdf text-red-400"></i>
@@ -140,9 +123,7 @@
                         <input type="file" id="file-input" multiple accept=".pdf" class="hidden">
                     </div>
                     
-                    <!-- Enhanced Processing Status -->
                     <div id="processing-status" class="hidden mt-4">
-                        <!-- Phase indicators -->
                         <div class="progress-phases mb-2">
                             <div class="progress-phase" data-phase="extraction" title="PDF Extraction"></div>
                             <div class="progress-phase" data-phase="chunking" title="Semantic Chunking"></div>
@@ -160,15 +141,9 @@
                         <div class="w-full bg-slate-700 rounded-full h-2 mt-2">
                             <div id="processing-bar" class="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
                         </div>
-                        <div id="processing-stats" class="mt-2 text-xs text-slate-500 hidden">
-                            <span id="stat-pages">0 pages</span> • 
-                            <span id="stat-chunks">0 chunks</span> • 
-                            <span id="stat-time">0s</span>
-                        </div>
                     </div>
                 </div>
 
-                <!-- Memory Bank -->
                 <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
                     <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
                         <i class="fas fa-database text-purple-400"></i>
@@ -193,7 +168,6 @@
                         </div>
                     </div>
                     
-                    <!-- Document List -->
                     <div id="document-list" class="space-y-2 max-h-48 overflow-y-auto">
                         <p class="text-sm text-slate-500 italic">No documents loaded yet</p>
                     </div>
@@ -208,7 +182,6 @@
                     </div>
                 </div>
 
-                <!-- System Controls -->
                 <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
                     <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
                         <i class="fas fa-sliders-h text-cyan-400"></i>
@@ -216,17 +189,29 @@
                     </h2>
                     
                     <div class="space-y-4">
-                        <!-- Temperature -->
+                        <div class="mb-4">
+                            <label class="text-sm text-slate-400 mb-1 block flex justify-between">
+                                <span>AI Model</span>
+                                <span id="vram-estimate" class="text-xs text-slate-500">~1.2GB VRAM</span>
+                            </label>
+                            <select id="model-selector" class="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+                                <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC" data-vram="~1.2GB" selected>⚡ Llama 3.2 1B (Fastest)</option>
+                                <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC" data-vram="~2.4GB">🚀 Llama 3.2 3B (Balanced)</option>
+                                <option value="Llama-3.1-8B-Instruct-q4f32_1-MLC" data-vram="~6.0GB">🧠 Llama 3.1 8B (Smartest - High GPU)</option>
+                                <option value="gemma-2-2b-it-q4f16_1-MLC" data-vram="~1.8GB">💎 Gemma 2 2B (Google)</option>
+                                <option value="Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC" data-vram="~5.5GB">🧪 Hermes 2 Pro 8B (Uncensored)</option>
+                            </select>
+                        </div>
+
                         <div>
                             <label class="flex items-center justify-between text-sm text-slate-400 mb-1">
                                 <span>Temperature</span>
-                                <span id="temp-value" class="text-cyan-400">0.4</span>
+                                <span id="temp-value" class="text-cyan-400">0.2</span>
                             </label>
-                            <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.4"
+                            <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.2"
                                    class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                         </div>
                         
-                        <!-- Top K Chunks -->
                         <div>
                             <label class="flex items-center justify-between text-sm text-slate-400 mb-1">
                                 <span>Top K Chunks</span>
@@ -236,7 +221,6 @@
                                    class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                         </div>
                         
-                        <!-- TTS Toggle -->
                         <div class="flex items-center justify-between">
                             <label class="text-sm text-slate-400 flex items-center gap-2">
                                 <i class="fas fa-volume-up"></i>
@@ -247,35 +231,29 @@
                             </button>
                         </div>
                         
-                        <!-- System Prompt -->
                         <div>
-                            <label class="text-sm text-slate-400 mb-1 block">System Prompt</label>
+                            <label class="text-sm text-slate-400 mb-1 block">System Prompt (Active)</label>
                             <textarea id="system-prompt" rows="6"
-                                      class="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-slate-200 resize-none focus:outline-none focus:border-blue-500">You are an expert academic research assistant analyzing scientific documents.
+                                      class="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-xs text-slate-300 resize-none focus:outline-none focus:border-blue-500" disabled>ROLE: You are a strict extraction engine. You are NOT a creative writer.
+ROLE: You are a strict extraction engine. You are NOT a creative writer.
+TASK: Summarize the provided text below based strictly on the user's question.
 
-STRICT RULES:
-1. ONLY use information from the provided context - never invent facts
-2. Use inline citations: [1], [2], etc. matching the source numbers in context
-3. QUOTE key passages using "..." when making specific claims
-4. If information is NOT in the context, say: "The documents do not contain this information."
-5. For numbers, dates, or statistics: quote exactly from the source
-FOR LITERATURE REVIEWS:
-Structure your response as:
-- **Introduction**: Brief overview of the topic
-- **Key Themes**: Compare and contrast findings across papers
-- **Methodology Comparison**: How different papers approached the topic
-- **Conclusion**: Synthesis of main insights
+ABSOLUTE RULES (Follow or fail):
+1. USE ONLY THE TEXT BELOW. Do not use your own knowledge.
+2. CITATIONS ARE MANDATORY. Every sentence must end with [1], [2], etc.
+3. IF THE ANSWER IS NOT IN THE TEXT: Write exactly "Insufficient information in the documents."
+4. NO FAKE REFERENCES. Do not invent authors or dates.
+5. KEEP IT SHORT. The model is small, be concise.
 
-Always cite specific sources with [1], [2], etc.
-NEVER hallucinate facts, dates, statistics, or claims not explicitly in the context.</textarea>
+FORMATTING:
+- Use bullet points for clarity.
+- Bold key terms.</textarea>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Right Panel: Chat Interface -->
             <div class="lg:col-span-2 flex flex-col bg-slate-800 rounded-xl border border-slate-700 overflow-hidden" style="height: calc(100vh - 180px);">
-                <!-- Model Loading Status -->
                 <div id="model-status" class="bg-slate-700/50 px-4 py-3 border-b border-slate-700">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
@@ -299,9 +277,7 @@ NEVER hallucinate facts, dates, statistics, or claims not explicitly in the cont
                     </div>
                 </div>
 
-                <!-- Chat Messages -->
                 <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4">
-                    <!-- Welcome Message -->
                     <div class="flex gap-3">
                         <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
                             <i class="fas fa-robot text-white text-sm"></i>
@@ -310,22 +286,15 @@ NEVER hallucinate facts, dates, statistics, or claims not explicitly in the cont
                             <p class="text-slate-200">Welcome to the <strong>Local LLM Literature Reviewer</strong>! 📚</p>
                             <p class="text-slate-300 mt-2">I run entirely in your browser - no data leaves your device. Here's how to get started:</p>
                             <ol class="text-slate-300 mt-2 ml-4 list-decimal space-y-1">
-                                <li>Click <strong>"Load Models"</strong> to initialize the AI (requires WebGPU)</li>
-                                <li>Upload your research PDFs using the drop zone</li>
-                                <li>Ask me questions or request a literature review!</li>
+                                <li>Select a model (Llama 3.2 1B is recommended for starters)</li>
+                                <li>Click <strong>"Load Models"</strong> to initialize</li>
+                                <li>Upload your research PDFs</li>
+                                <li>Ask me questions or request a review!</li>
                             </ol>
-                            <div class="mt-3 p-2 bg-green-600/10 border border-green-600/30 rounded-lg">
-                                <p class="text-green-400 text-sm">
-                                    <i class="fas fa-bolt mr-1"></i>
-                                    <strong>NEW:</strong> Fast processing for large PDFs (100+ pages) with intelligent caching!
-                                </p>
-                            </div>
-                            <p class="text-slate-400 text-sm mt-3 italic">Tip: Try "Generate a literature review of the uploaded papers"</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Context Panel (shows retrieved chunks) -->
                 <div id="context-panel" class="hidden border-t border-slate-700 bg-slate-800/50 max-h-48 overflow-y-auto">
                     <div class="p-3">
                         <div class="flex items-center justify-between mb-2">
@@ -340,7 +309,6 @@ NEVER hallucinate facts, dates, statistics, or claims not explicitly in the cont
                     </div>
                 </div>
 
-                <!-- Input Area -->
                 <div class="border-t border-slate-700 p-4">
                     <div class="flex gap-3">
                         <div class="flex-1 relative">
@@ -368,18 +336,21 @@ NEVER hallucinate facts, dates, statistics, or claims not explicitly in the cont
         </div>
     </main>
 
-    <!-- Audio Feedback -->
-    <div id="voice-indicator" class="hidden fixed bottom-24 right-8 bg-red-600 text-white px-4 py-2 rounded-full flex items-center gap-2 shadow-lg">
-        <i class="fas fa-microphone"></i>
-        <span>Listening...</span>
-        <div class="flex gap-1">
-            <div class="w-1 h-4 bg-white rounded animate-pulse"></div>
-            <div class="w-1 h-6 bg-white rounded animate-pulse" style="animation-delay: 0.1s"></div>
-            <div class="w-1 h-3 bg-white rounded animate-pulse" style="animation-delay: 0.2s"></div>
+    <div id="voice-indicator" class="hidden fixed bottom-24 right-8 bg-red-600 text-white px-4 py-2 rounded-full flex items-center gap-2 shadow-lg transition-all duration-300">
+        <i id="voice-icon" class="fas fa-microphone"></i>
+        <span id="voice-status">Listening...</span>
+        <div id="audio-bars" class="flex gap-0.5 items-end h-6">
+            <div class="audio-bar w-1 bg-white rounded transition-all duration-75" style="height: 4px"></div>
+            <div class="audio-bar w-1 bg-white rounded transition-all duration-75" style="height: 4px"></div>
+            <div class="audio-bar w-1 bg-white rounded transition-all duration-75" style="height: 4px"></div>
+            <div class="audio-bar w-1 bg-white rounded transition-all duration-75" style="height: 4px"></div>
+            <div class="audio-bar w-1 bg-white rounded transition-all duration-75" style="height: 4px"></div>
+        </div>
+        <div id="silence-indicator" class="hidden text-xs opacity-75 ml-1">
+            <i class="fas fa-clock"></i> <span id="silence-countdown">2s</span>
         </div>
     </div>
 
-    <!-- Scripts -->
     <script type="module">
         // ============================================
         // IMPORTS
@@ -411,18 +382,18 @@ NEVER hallucinate facts, dates, statistics, or claims not explicitly in the cont
             CACHE_VERSION: 2,           // Bumped for new chunk format with pages
             CACHE_MAX_AGE_MS: 7 * 24 * 60 * 60 * 1000, // 7 days
             
-            // Models - UPGRADED to 3B for better responses
+            // Models
             EMBEDDING_MODEL: 'Xenova/all-MiniLM-L6-v2',
             WHISPER_MODEL: 'Xenova/whisper-tiny',
-            LLM_MODEL: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',  // Upgraded from 1B to 3B
-            LLM_MODEL_FALLBACK: 'Llama-3.2-1B-Instruct-q4f16_1-MLC', // Fallback if 3B fails
+            LLM_MODEL: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',  // Default, mutable
+            LLM_MODEL_FALLBACK: 'Llama-3.2-1B-Instruct-q4f16_1-MLC', 
             
             // RAG - Hybrid Search
             TOP_K: 10,
             TOP_K_SEMANTIC: 15,         // Fetch more for reranking
             TOP_K_KEYWORD: 15,          // Keyword search candidates
             RRF_K: 60,                  // RRF constant
-            TEMPERATURE: 0.3,           // Lower for more factual responses
+            TEMPERATURE: 0.2,           // Very low for factual responses
             TTS_ENABLED: true,
             SELF_EVAL_ENABLED: true,
             STORAGE_KEY: 'lit-reviewer-metrics'
@@ -625,7 +596,7 @@ NEVER hallucinate facts, dates, statistics, or claims not explicitly in the cont
         }
 
         // ============================================
-        // PARALLEL PDF EXTRACTOR (with page numbers)
+        // PARALLEL PDF EXTRACTOR (Optimized Column Detection)
         // ============================================
         class ParallelPDFExtractor {
             constructor(progressCallback = null) {
@@ -697,47 +668,117 @@ NEVER hallucinate facts, dates, statistics, or claims not explicitly in the cont
                 };
             }
             
+            // --- NEW OPTIMIZED EXTRACT PAGE FUNCTION ---
             async extractPage(pdf, pageNum, index) {
                 try {
                     const page = await pdf.getPage(pageNum);
                     const textContent = await page.getTextContent();
+                    const viewport = page.getViewport({ scale: 1.0 });
+
+                    // 1. Normalisation des items
+                    // On convertit tout en coordonnées absolues (0,0 en haut à gauche)
+                    const items = textContent.items.map(item => {
+                        const tx = item.transform;
+                        // Calculer la position visuelle réelle
+                        // Note: En PDF, Y=0 est en bas. On inverse pour avoir Y=0 en haut.
+                        const x = tx[4];
+                        const y = viewport.height - tx[5]; 
+                        const w = item.width;
+                        const h = item.height;
+
+                        return {
+                            str: item.str,
+                            x: x,
+                            y: y,
+                            w: w,
+                            h: h,
+                            bottom: y + h,
+                            right: x + w
+                        };
+                    });
+
+                    // 2. Détection automatique des colonnes (Heuristique de la "Gouttière")
+                    const pageMidX = viewport.width / 2;
+                    let isTwoColumn = true;
                     
-                    const items = textContent.items;
-                    let text = '';
-                    let lastY = null;
-                    let possibleChapterTitle = null;
-                    
+                    // On tolère une marge de 10% au centre
+                    const centerZoneStart = pageMidX - (viewport.width * 0.05);
+                    const centerZoneEnd = pageMidX + (viewport.width * 0.05);
+
                     for (const item of items) {
-                        const y = item.transform[5];
-                        const fontSize = Math.abs(item.transform[0]);
-                        
-                        // Detect chapter/section titles (usually larger font at top)
-                        if (!possibleChapterTitle && fontSize > 12 && item.str.trim().length > 3) {
-                            const str = item.str.trim();
-                            // Check if it looks like a chapter/section header
-                            if (/^(Chapter|Section|\d+\.|\d+\s|[IVX]+\.|Abstract|Introduction|Method|Result|Discussion|Conclusion)/i.test(str)) {
-                                possibleChapterTitle = str.substring(0, 100);
+                        // Si un texte traverse le milieu, ce n'est probablement pas du 2 colonnes
+                        if (item.x < centerZoneStart && item.right > centerZoneEnd) {
+                            isTwoColumn = false;
+                            break;
+                        }
+                    }
+
+                    // 3. Tri intelligent selon le layout
+                    items.sort((a, b) => {
+                        if (isTwoColumn) {
+                            // LOGIQUE 2 COLONNES :
+                            const aIsLeft = a.x < pageMidX;
+                            const bIsLeft = b.x < pageMidX;
+
+                            if (aIsLeft !== bIsLeft) {
+                                // Celui de gauche passe TOUJOURS avant celui de droite
+                                return aIsLeft ? -1 : 1;
+                            }
+                            // S'ils sont dans la même colonne, on trie par Y
+                            if (Math.abs(a.y - b.y) < 5) {
+                                return a.x - b.x; // Même ligne
+                            }
+                            return a.y - b.y;
+                        } else {
+                            // LOGIQUE 1 COLONNE (Classique) :
+                            if (Math.abs(a.y - b.y) < 5) {
+                                return a.x - b.x;
+                            }
+                            return a.y - b.y;
+                        }
+                    });
+
+                    // 4. Reconstruction du texte
+                    let text = '';
+                    let lastY = -999;
+                    let lastX = -999;
+                    let possibleChapterTitle = null;
+                    const lineHeightThreshold = 15; 
+
+                    for (const item of items) {
+                        if (lastY !== -999) {
+                            const verticalGap = item.y - lastY;
+                            if (verticalGap > lineHeightThreshold) {
+                                text += '\n';
+                                if (verticalGap > lineHeightThreshold * 2) text += '\n';
+                            } else if (Math.abs(item.y - lastY) < 5 && item.x > lastX + 5) {
+                                text += ' ';
                             }
                         }
-                        
-                        if (lastY !== null && Math.abs(y - lastY) > 5) {
-                            text += '\n';
+                        text += item.str;
+                        lastY = item.y;
+                        lastX = item.right;
+
+                        // Détection basique de titre
+                        if (!possibleChapterTitle && item.h > 12 && item.str.length > 3) {
+                            if (/^(Abstract|Introduction|Methods|Results|Discussion|Conclusion|References|\d+\s+[A-Z])/.test(item.str)) {
+                                possibleChapterTitle = item.str;
+                            }
                         }
-                        text += item.str + ' ';
-                        lastY = y;
                     }
-                    
+
                     const metadata = {
                         pageNum: pageNum,
                         chapterTitle: possibleChapterTitle
                     };
-                    
+
                     if (pageNum === 1) {
                         metadata.isFirstPage = true;
-                        metadata.possibleTitle = this.detectTitle(text);
+                        metadata.possibleTitle = text.split('\n').slice(0, 3).join(' ').trim();
                     }
-                    
+
                     return { pageNum: index, text: text.trim(), metadata };
+
                 } catch (error) {
                     console.warn(`Error extracting page ${pageNum}:`, error);
                     return { pageNum: index, text: '', metadata: { pageNum: pageNum } };
@@ -1155,20 +1196,10 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         // UTILITY FUNCTIONS
         // ============================================
         
-        /**
-         * Cosine Similarity: Measures similarity between two vectors
-         * Formula: similarity = (A · B) / (||A|| × ||B||)
-         * Since embeddings are normalized, we only compute dot product.
-         * Optimized with loop unrolling (4x) for performance.
-         * @param {Float32Array} vecA - First embedding vector
-         * @param {Float32Array} vecB - Second embedding vector
-         * @returns {number} Similarity score between 0 and 1
-         */
         function cosineSimilarity(vecA, vecB) {
             const len = vecA.length;
             if (len !== vecB.length) return 0;
             
-            // Loop unrolling for ~4x speedup on large vectors
             let dot = 0;
             const remainder = len % 4;
             let i = 0;
@@ -1361,28 +1392,17 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 .slice(0, topK);
         }
         
-        /**
-         * Reciprocal Rank Fusion (RRF)
-         * Combines results from multiple ranking systems (semantic + keyword)
-         * Formula: score(d) = Σ 1/(k + rank_i) for each ranking system i
-         * k=60 is the standard constant that balances high and low-ranked documents
-         * @param {Array} semanticResults - Results from semantic search
-         * @param {Array} keywordResults - Results from keyword search  
-         * @param {number} k - Ranking constant (default: 60)
-         * @returns {Array} Merged and re-ranked results
-         */
+        // Reciprocal Rank Fusion
         function reciprocalRankFusion(semanticResults, keywordResults, k = 60) {
             const scores = new Map();
             const chunks = new Map();
             
-            // Score from semantic search
             semanticResults.forEach((item, rank) => {
                 const id = item.id || `sem-${rank}`;
                 scores.set(id, (scores.get(id) || 0) + 1 / (k + rank + 1));
                 chunks.set(id, item);
             });
             
-            // Score from keyword search
             keywordResults.forEach((item, rank) => {
                 const id = item.id || `kw-${rank}`;
                 scores.set(id, (scores.get(id) || 0) + 1 / (k + rank + 1));
@@ -1391,7 +1411,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 }
             });
             
-            // Sort by combined RRF score
             const results = [...scores.entries()]
                 .sort((a, b) => b[1] - a[1])
                 .map(([id, rrfScore]) => {
@@ -1804,39 +1823,45 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 
                 const webllm = await import('https://esm.run/@mlc-ai/web-llm');
                 
-                progressText.textContent = 'Loading LLM model (3B)...';
+                // --- MODIFICATION: Dynamic Model Selection ---
+                const selectedModel = document.getElementById('model-selector').value;
+                const selectedText = document.getElementById('model-selector').options[document.getElementById('model-selector').selectedIndex].text;
                 
-                // Try to load 3B model first, fallback to 1B if it fails
-                let llmModel = CONFIG.LLM_MODEL;
+                progressText.textContent = `Loading ${selectedText}...`;
+                CONFIG.LLM_MODEL = selectedModel;
+
+                // Unload previous model if exists
+                if (state.llmEngine) {
+                    await state.llmEngine.unload();
+                }
+
                 try {
-                    state.llmEngine = await webllm.CreateMLCEngine(llmModel, {
+                    state.llmEngine = await webllm.CreateMLCEngine(selectedModel, {
                         initProgressCallback: (progress) => {
                             const pct = Math.round(45 + (progress.progress * 55));
                             progressPercent.textContent = `${pct}%`;
                             progressBar.style.width = `${pct}%`;
-                            progressText.textContent = progress.text || 'Loading LLM (3B)...';
+                            progressText.textContent = progress.text || `Loading model...`;
                         }
                     });
-                    console.log('✅ Loaded 3B model successfully');
+                    console.log(`✅ Loaded ${selectedModel} successfully`);
                 } catch (e) {
-                    console.warn('⚠️ 3B model failed, falling back to 1B:', e.message);
+                    console.warn(`⚠️ ${selectedModel} failed, falling back...`, e.message);
                     progressText.textContent = 'Falling back to 1B model...';
-                    llmModel = CONFIG.LLM_MODEL_FALLBACK;
                     
-                    state.llmEngine = await webllm.CreateMLCEngine(llmModel, {
+                    state.llmEngine = await webllm.CreateMLCEngine(CONFIG.LLM_MODEL_FALLBACK, {
                         initProgressCallback: (progress) => {
                             const pct = Math.round(45 + (progress.progress * 55));
                             progressPercent.textContent = `${pct}%`;
                             progressBar.style.width = `${pct}%`;
-                            progressText.textContent = progress.text || 'Loading LLM (1B fallback)...';
+                            progressText.textContent = progress.text || 'Loading LLM (Fallback)...';
                         }
                     });
-                    console.log('✅ Loaded 1B fallback model');
                 }
                 
                 state.modelsLoaded = true;
                 modelIndicator.className = 'w-3 h-3 rounded-full bg-green-500';
-                modelText.textContent = `Models ready! (${llmModel.includes('3B') ? '3B' : '1B'})`;
+                modelText.textContent = `Ready: ${selectedModel.split('-')[1]}B`;
                 modelText.className = 'text-sm text-green-400';
                 modelProgress.classList.add('hidden');
                 loadBtn.classList.add('hidden');
@@ -1844,8 +1869,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 document.getElementById('user-input').disabled = false;
                 document.getElementById('send-btn').disabled = false;
                 
-                const modelInfo = llmModel.includes('3B') ? '🚀 Using **3B model** for better accuracy' : '⚡ Using **1B model** for faster responses';
-                addMessage('assistant', `🎉 Models loaded successfully! ${modelInfo}\n\n📄 **Upload PDFs** using the drop zone on the left.\n\n⚡ **New features:**\n- Hybrid search (semantic + keyword)\n- Page-aware chunking with citations\n- Improved grounding and citations`);
+                addMessage('assistant', `🎉 **${selectedText}** loaded successfully!\n\n📄 **Upload PDFs** to start.\n\n💡 *Tip: For complex queries, try switching to a larger model if your PC allows it.*`);
                 
             } catch (error) {
                 console.error('Error loading models:', error);
@@ -1884,7 +1908,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     const cached = await state.pdfCache.get(hash);
                     
                     if (cached && cached.embeddings) {
-                        // Restore from cache
                         console.log('⚡ Restored from cache:', file.name);
                         document.getElementById('cache-indicator').classList.remove('hidden');
                         
@@ -1911,7 +1934,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         updateMemoryDisplay();
                         
                         const cacheTime = ((performance.now() - processStart) / 1000).toFixed(2);
-                        addMessage('assistant', `⚡ **${file.name}** restored from cache in ${cacheTime}s!\n\n📊 ${cached.embeddings.length} chunks ready.\n\n*Try: "What is this paper about?"*`);
+                        addMessage('assistant', ` **${file.name}** restored from cache in ${cacheTime}s!\n\n📊 ${cached.embeddings.length} chunks ready.`);
                         
                         setTimeout(() => {
                             document.getElementById('cache-indicator').classList.add('hidden');
@@ -1938,19 +1961,15 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     // 2. Semantic chunking with page numbers
                     updateProcessingProgressEnhanced('chunking', 0, 1, 'Analyzing document structure...');
                     
-                    console.log('📝 Full text length before chunking:', extracted.fullText.length);
-                    
                     const chunker = new SemanticChunker();
-                    // Pass pagesWithNumbers for page-aware chunking
                     const rawChunks = chunker.chunk(extracted.fullText, file.name, extracted.pagesWithNumbers);
                     
                     updateProcessingProgressEnhanced('chunking', 1, 1, `Created ${rawChunks.length} semantic chunks`);
                     
-                    // 3. Embed with priority (overview first)
+                    // 3. Embed with priority
                     const sortedChunks = [...rawChunks].sort((a, b) => (a.priority || 999) - (b.priority || 999));
                     const embeddedChunks = [];
                     
-                    // Priority chunks first (for quick start)
                     const priorityChunks = sortedChunks.slice(0, CONFIG.PRIORITY_EMBED_COUNT);
                     const remainingChunks = sortedChunks.slice(CONFIG.PRIORITY_EMBED_COUNT);
                     
@@ -1972,8 +1991,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                             id: `${file.name}-${chunk.type}-${chunk.priority}`
                         });
                         
-                        updateMemoryDisplay();
-                        
+                        updateMemoryDisplay();   
                         updateProcessingProgressEnhanced(
                             'embedding',
                             i + 1,
@@ -1982,13 +2000,12 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         );
                     }
                     
-                    // Quick start notification
                     if (priorityChunks.length > 0 && remainingChunks.length > 0) {
                         state.priorityReady = true;
-                        addMessage('assistant', `🚀 **Quick start ready!** Key sections of **${file.name}** are processed. You can start asking questions while ${remainingChunks.length} more chunks are being embedded...`);
+                        addMessage('assistant', `🚀 **Quick start ready!** Key sections of **${file.name}** are processed.`);
                     }
                     
-                    // Remaining chunks in batches
+                    // Remaining chunks
                     const batchSize = 16;
                     for (let i = 0; i < remainingChunks.length; i += batchSize) {
                         const batch = remainingChunks.slice(i, Math.min(i + batchSize, remainingChunks.length));
@@ -2011,17 +2028,9 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         });
                         
                         updateMemoryDisplay();
-                        
                         const completed = priorityChunks.length + i + batch.length;
-                        updateProcessingProgressEnhanced(
-                            'embedding',
-                            completed,
-                            rawChunks.length,
-                            `Embedded ${completed}/${rawChunks.length} chunks`
-                        );
+                        updateProcessingProgressEnhanced('embedding', completed, rawChunks.length, `Embedded ${completed}/${rawChunks.length} chunks`);
                     }
-                    
-                    // Extract metadata
                     const sections = [...new Set(rawChunks.map(c => c.section).filter(s => s && s !== 'unknown'))];
                     const metadata = {
                         title: extracted.metadata[0]?.possibleTitle || file.name,
@@ -2030,8 +2039,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         textLength: extracted.fullText.length,
                         chunkCount: rawChunks.length
                     };
-                    
-                    // Cache for future use
+                    // Cache results
                     try {
                         const cacheableChunks = embeddedChunks.map(c => ({
                             ...c,
@@ -2049,18 +2057,15 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         console.warn('Failed to cache:', e);
                     }
                     
-                    // Store document info
                     state.documents.push({
                         name: file.name,
-                        title: metadata.title,
+                        title: extracted.metadata[0]?.possibleTitle,
                         chunkCount: rawChunks.length,
-                        sections,
                         textLength: extracted.fullText.length
                     });
                     
                     const totalTime = ((performance.now() - processStart) / 1000).toFixed(1);
-                    
-                    addMessage('assistant', `✅ **${file.name}** processed successfully!\n\n📊 **Statistics:**\n- Pages: ${extracted.numPages}\n- Chunks: ${rawChunks.length}\n- Sections: ${sections.slice(0, 5).join(', ')}${sections.length > 5 ? '...' : ''}\n- Processing time: ${totalTime}s\n\n💡 *Try: "What is this paper about?" or "Summarize the methods"*`);
+                    addMessage('assistant', `✅ **${file.name}** processed successfully in ${totalTime}s.`);
                     
                 } catch (error) {
                     console.error(`Error processing ${file.name}:`, error);
@@ -2073,7 +2078,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         }
 
         // ============================================
-        // CHAT LOGIC
+        // CHAT LOGIC (Optimized for Small Models)
         // ============================================
         
         async function handleChat(userMessage) {
@@ -2112,24 +2117,17 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     if (relevantChunks.length > 0) {
                         showContextPanel(relevantChunks);
                         
-                        // Build context with page numbers for better citations
-                        // IMPORTANT: Truncate to ~3000 tokens (~12000 chars) to fit in 4096 context window
                         const MAX_CONTEXT_CHARS = 10000;
                         let totalChars = 0;
                         const usedChunks = [];
                         
                         for (const chunk of relevantChunks) {
                             const pageInfo = chunk.pageStart ? 
-                                (chunk.pageStart === chunk.pageEnd ? 
-                                    `Page ${chunk.pageStart}` : 
-                                    `Pages ${chunk.pageStart}-${chunk.pageEnd}`) : 
-                                '';
+                                (chunk.pageStart === chunk.pageEnd ? `Page ${chunk.pageStart}` : `Pages ${chunk.pageStart}-${chunk.pageEnd}`) : '';
+                            
                             const chunkText = `[${usedChunks.length + 1}] [Source: ${chunk.source}${pageInfo ? ' | ' + pageInfo : ''}]\n${chunk.text}`;
                             
-                            if (totalChars + chunkText.length > MAX_CONTEXT_CHARS) {
-                                console.log(`⚠️ Context truncated: using ${usedChunks.length}/${relevantChunks.length} chunks`);
-                                break;
-                            }
+                            if (totalChars + chunkText.length > MAX_CONTEXT_CHARS) break;
                             
                             usedChunks.push(chunkText);
                             totalChars += chunkText.length;
@@ -2137,40 +2135,71 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         
                         contextText = usedChunks.join('\n\n---\n\n');
                         
+                        // --- ANTI-HALLUCINATION CLEANING ---
+                        const patterns = [/\n\s*References\s*\n/i, /\n\s*Bibliography\s*\n/i, /\n\s*LITERATURE CITED\s*\n/i];
+                        for (const pattern of patterns) {
+                            const match = contextText.match(pattern);
+                            if (match && match.index > contextText.length * 0.5) {
+                                console.log("✂️ Bibliographie détectée et coupée.");
+                                contextText = contextText.substring(0, match.index);
+                                break;
+                            }
+                        }
+                        
+                        if (contextText.length > 6000) {
+                            console.log("✂️ Contexte tronqué à 6000 caractères.");
+                            contextText = contextText.substring(0, 6000) + "\n...(truncated)...";
+                        }
+                        // ------------------------------------
+
                         retrievalMetrics.topSimilarity = relevantChunks[0].similarity || relevantChunks[0].rrfScore || 0;
                         retrievalMetrics.avgSimilarity = relevantChunks.reduce((sum, c) => sum + (c.similarity || c.rrfScore || 0), 0) / relevantChunks.length;
-                        retrievalMetrics.sourceDiversity = new Set(relevantChunks.map(c => c.source)).size;
-                        retrievalMetrics.chunksUsed = usedChunks.length;
                     }
                 }
                 
-                const systemPrompt = document.getElementById('system-prompt').value;
-                const temperature = parseFloat(document.getElementById('temperature').value);
+                // --- STRICT PROMPT ENGINEERING FOR SMALL MODELS ---
+                let fullSystemPrompt = `ROLE: You are a strict extraction engine. You are NOT a creative writer.
+TASK: Summarize the provided text below based strictly on the user's question.
+
+ABSOLUTE RULES (Follow or fail):
+1. USE ONLY THE TEXT BELOW. Do not use your own knowledge.
+2. CITATIONS ARE MANDATORY. Every sentence must end with [1], [2], etc.
+3. IF THE ANSWER IS NOT IN THE TEXT: Write exactly "Insufficient information."
+4. NO FAKE REFERENCES. Do not invent authors or dates.
+5. KEEP IT SHORT. The model is small, be concise.
+
+FORMATTING:
+- Use bullet points for clarity.
+- Bold key terms.
+
+=== SOURCE TEXT START ===
+${contextText}
+=== SOURCE TEXT END ===
+
+USER QUESTION: ${userMessage}
+YOUR ANSWER (Based ONLY on Source Text):`;
+
+                let messages = [{ role: 'user', content: fullSystemPrompt }];
                 
-                let fullSystemPrompt = systemPrompt;
-                if (contextText) {
-                    fullSystemPrompt += `\n\n=== DOCUMENT CONTEXT START ===\n${contextText}\n=== DOCUMENT CONTEXT END ===\n\nAnswer the user's question based on the context above.`;
-                } else {
-                    fullSystemPrompt += '\n\nNote: No documents have been uploaded yet. Please upload PDF documents first.';
-                }
-                
-                let messages = [{ role: 'system', content: fullSystemPrompt }];
-                const recentHistory = state.chatHistory.slice(-6);
-                messages = messages.concat(recentHistory);
+                // Debug Log
+                console.log("=== DEBUG CONTEXTE ===");
+                console.log("Taille:", contextText.length);
+                console.log(contextText.substring(0, 500) + "..."); 
+                console.log("=======================");
                 
                 const generationStart = performance.now();
                 const response = await state.llmEngine.chat.completions.create({
                     messages: messages,
-                    temperature: temperature,
-                    max_tokens: 1024,
-                    stream: true
+                    temperature: temperature, // Very strict
+                    max_tokens: 512,
+                    stream: true,
+                    repetition_penalty: 1.2, // Strong penalty for small models
+                    top_p: 0.1
                 });
                 
                 hideTypingIndicator();
                 
                 let fullResponse = '';
-                const chatMessages = document.getElementById('chat-messages');
-                
                 const messageId = 'msg-' + Date.now();
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'flex gap-3';
@@ -2182,8 +2211,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         <span id="${messageId}"></span>
                     </div>
                 `;
-                chatMessages.appendChild(messageDiv);
-                
+                document.getElementById('chat-messages').appendChild(messageDiv);
                 const streamingContent = document.getElementById(messageId);
                 
                 for await (const chunk of response) {
@@ -2191,18 +2219,19 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         ttftMs = Math.round(performance.now() - generationStart);
                         firstTokenReceived = true;
                     }
-                    
                     const delta = chunk.choices[0]?.delta?.content || '';
                     if (delta) tokensGenerated++;
                     fullResponse += delta;
                     streamingContent.innerHTML = markdownToHtml(fullResponse);
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
                 }
                 
+                state.chatHistory.push({ role: 'assistant', content: fullResponse });
+                
+                // Track Metrics 
                 const totalTimeMs = Math.round(performance.now() - queryStartTime);
                 const generationTimeMs = Math.round(performance.now() - generationStart);
                 const tokensPerSecond = generationTimeMs > 0 ? Math.round((tokensGenerated / generationTimeMs) * 1000) : 0;
-                
                 const uniqueSources = relevantChunks.length > 0 ? [...new Set(relevantChunks.map(s => s.source))] : [];
                 const sourcesHtml = uniqueSources.length > 0 ? `
                     <div class="mt-3 pt-3 border-t border-slate-600">
@@ -2278,9 +2307,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     selfEval: null
                 };
                 state.queriesMetrics.push(queryMetrics);
-                
                 saveQueryMetrics(queryMetrics);
-                
                 if (analyticsWorker) {
                     analyticsWorker.postMessage({
                         action: 'computeAdvanced',
@@ -2305,7 +2332,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     utterance.rate = 1.0;
                     window.speechSynthesis.speak(utterance);
                 }
-                
             } catch (error) {
                 console.error('Chat error:', error);
                 hideTypingIndicator();
@@ -2317,7 +2343,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             userInput.disabled = false;
             userInput.focus();
         }
-        
         window.recordFeedback = function(queryId, vote) {
             recordFeedback(queryId, vote);
             
@@ -2334,11 +2359,11 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         };
 
         // ============================================
-        // EVENT LISTENERS
+        // EVENT LISTENERS (Updated)
         // ============================================
         
         document.addEventListener('DOMContentLoaded', async () => {
-            // Initialize cache manager
+            // ... existing init ...
             state.pdfCache = new PDFCacheManager();
             await state.pdfCache.ready;
             console.log('✅ PDF cache initialized');
@@ -2346,27 +2371,43 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             initMetricsStorage().catch(e => console.warn('Metrics init:', e));
             await checkWebGPU();
             
+            // --- NEW: Model Selector Listener ---
+            const modelSelector = document.getElementById('model-selector');
+            modelSelector.addEventListener('change', async (e) => {
+                const option = e.target.options[e.target.selectedIndex];
+                const vram = option.getAttribute('data-vram');
+                document.getElementById('vram-estimate').textContent = vram;
+
+                if (!state.modelsLoaded) return; // Wait for "Load Models" click
+
+                if (confirm(`Switching to ${option.text} requires re-downloading/re-loading weights. Continue?`)) {
+                    document.getElementById('load-models-btn').classList.remove('hidden');
+                    document.getElementById('model-progress').classList.remove('hidden');
+                    document.getElementById('model-indicator').className = 'w-3 h-3 rounded-full bg-yellow-500';
+                    document.getElementById('model-text').textContent = 'Switching model...';
+                    
+                    document.getElementById('user-input').disabled = true;
+                    document.getElementById('send-btn').disabled = true;
+
+                    await loadModels();
+                } else {
+                    e.target.value = CONFIG.LLM_MODEL; // Revert
+                }
+            });
+
+            // ... Dropzone / Inputs ...
             const dropZone = document.getElementById('drop-zone');
             const fileInput = document.getElementById('file-input');
             
             dropZone.addEventListener('click', () => fileInput.click());
-            
-            dropZone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                dropZone.classList.add('border-blue-500', 'bg-slate-700/50');
-            });
-            
-            dropZone.addEventListener('dragleave', () => {
-                dropZone.classList.remove('border-blue-500', 'bg-slate-700/50');
-            });
-            
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-blue-500', 'bg-slate-700/50'); });
+            dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('border-blue-500', 'bg-slate-700/50'); });
             dropZone.addEventListener('drop', async (e) => {
                 e.preventDefault();
                 dropZone.classList.remove('border-blue-500', 'bg-slate-700/50');
                 const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
                 await processFilesImproved(files);
             });
-            
             fileInput.addEventListener('change', async (e) => {
                 const files = Array.from(e.target.files);
                 await processFilesImproved(files);
@@ -2375,21 +2416,22 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             
             document.getElementById('load-models-btn').addEventListener('click', loadModels);
             
-            // Auto-load models
+            // Auto Load
             console.log('🚀 Auto-loading models...');
             loadModels();
             
+            // UI Helpers
             document.getElementById('clear-memory').addEventListener('click', () => {
                 state.vectorStore = [];
                 state.documents = [];
                 updateMemoryDisplay();
-                addMessage('assistant', '🗑️ Memory cleared. All documents have been removed.');
+                addMessage('assistant', '🗑️ Memory cleared.');
             });
             
             document.getElementById('clear-cache').addEventListener('click', async () => {
-                if (confirm('Clear all cached PDFs? This will require re-processing uploaded documents.')) {
+                if (confirm('Clear cache?')) {
                     await state.pdfCache.clear();
-                    addMessage('assistant', '🗑️ PDF cache cleared.');
+                    addMessage('assistant', '🗑️ Cache cleared.');
                 }
             });
             
@@ -2402,7 +2444,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 document.getElementById('topk-value').textContent = e.target.value;
                 CONFIG.TOP_K = parseInt(e.target.value);
             });
-            
             const ttsToggle = document.getElementById('tts-toggle');
             ttsToggle.addEventListener('click', () => {
                 CONFIG.TTS_ENABLED = !CONFIG.TTS_ENABLED;
@@ -2418,14 +2459,11 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     window.speechSynthesis.cancel();
                 }
             });
-            
             const userInput = document.getElementById('user-input');
             const sendBtn = document.getElementById('send-btn');
-            
             userInput.addEventListener('input', () => {
                 document.getElementById('char-count').textContent = `${userInput.value.length} / 2000`;
             });
-            
             userInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -2436,7 +2474,6 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     }
                 }
             });
-            
             sendBtn.addEventListener('click', () => {
                 if (userInput.value.trim()) {
                     handleChat(userInput.value.trim());
@@ -2444,18 +2481,200 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     document.getElementById('char-count').textContent = '0 / 2000';
                 }
             });
-            
             document.getElementById('close-context').addEventListener('click', () => {
                 document.getElementById('context-panel').classList.add('hidden');
             });
             
-            // Voice input
+            // ============================================
+            // VOICE INPUT WITH VAD (Voice Activity Detection)
+            // ============================================
             const voiceBtn = document.getElementById('voice-btn');
             const voiceIndicator = document.getElementById('voice-indicator');
+            const voiceStatus = document.getElementById('voice-status');
+            const voiceIcon = document.getElementById('voice-icon');
+            const audioBars = document.querySelectorAll('.audio-bar');
+            const silenceIndicator = document.getElementById('silence-indicator');
+            const silenceCountdown = document.getElementById('silence-countdown');
+            
             let mediaRecorder = null;
             let audioChunks = [];
             let isRecording = false;
+            let audioContext = null;
+            let analyser = null;
+            let vadInterval = null;
+            let silenceStart = null;
             
+            // VAD Configuration
+            const VAD_CONFIG = {
+                silenceThreshold: 0.015,      // RMS threshold for silence detection
+                silenceDuration: 1500,        // ms of silence before auto-stop
+                minRecordingTime: 500,        // Minimum recording time in ms
+                maxRecordingTime: 30000,      // Maximum recording time (30s)
+                analysisInterval: 50          // How often to check audio level (ms)
+            };
+            
+            /**
+             * Calculate RMS (Root Mean Square) amplitude from audio data
+             * This measures the "loudness" of the audio signal
+             * @param {Uint8Array} dataArray - Audio frequency data
+             * @returns {number} RMS value between 0 and 1
+             */
+            function calculateRMS(dataArray) {
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    const normalized = (dataArray[i] - 128) / 128; // Normalize to -1 to 1
+                    sum += normalized * normalized;
+                }
+                return Math.sqrt(sum / dataArray.length);
+            }
+            
+            /**
+             * Update visual audio level bars based on RMS
+             * @param {number} rms - Current RMS level
+             */
+            function updateAudioBars(rms) {
+                const maxHeight = 24; // pixels
+                const minHeight = 4;
+                
+                audioBars.forEach((bar, index) => {
+                    // Add some variation between bars
+                    const variation = 1 + (Math.random() - 0.5) * 0.4;
+                    const height = Math.max(minHeight, Math.min(maxHeight, rms * maxHeight * 10 * variation));
+                    bar.style.height = `${height}px`;
+                });
+            }
+            
+            /**
+             * Set voice indicator state with appropriate styling
+             * @param {'listening'|'processing'|'speaking'|'hidden'} state
+             */
+            function setVoiceState(newState) {
+                voiceIndicator.classList.remove('hidden', 'bg-red-600', 'bg-yellow-600', 'bg-green-600', 'bg-blue-600');
+                voiceBtn.classList.remove('text-red-500', 'text-yellow-500', 'text-green-500', 'text-blue-500');
+                
+                switch (newState) {
+                    case 'listening':
+                        voiceIndicator.classList.add('bg-red-600');
+                        voiceBtn.classList.add('text-red-500');
+                        voiceIcon.className = 'fas fa-microphone';
+                        voiceStatus.textContent = 'Listening...';
+                        silenceIndicator.classList.add('hidden');
+                        break;
+                    case 'silence':
+                        voiceIndicator.classList.add('bg-yellow-600');
+                        voiceBtn.classList.add('text-yellow-500');
+                        voiceIcon.className = 'fas fa-microphone-slash';
+                        voiceStatus.textContent = 'Silence detected';
+                        silenceIndicator.classList.remove('hidden');
+                        break;
+                    case 'processing':
+                        voiceIndicator.classList.add('bg-blue-600');
+                        voiceBtn.classList.add('text-blue-500');
+                        voiceIcon.className = 'fas fa-spinner fa-spin';
+                        voiceStatus.textContent = 'Transcribing...';
+                        silenceIndicator.classList.add('hidden');
+                        // Reset bars to minimal
+                        audioBars.forEach(bar => bar.style.height = '4px');
+                        break;
+                    case 'speaking':
+                        voiceIndicator.classList.add('bg-green-600');
+                        voiceBtn.classList.add('text-green-500');
+                        voiceIcon.className = 'fas fa-volume-up';
+                        voiceStatus.textContent = 'Speaking...';
+                        silenceIndicator.classList.add('hidden');
+                        break;
+                    case 'hidden':
+                    default:
+                        voiceIndicator.classList.add('hidden');
+                        silenceIndicator.classList.add('hidden');
+                        break;
+                }
+            }
+            
+            /**
+             * Start VAD monitoring - analyzes audio in real-time
+             * @param {MediaStream} stream - Audio stream from microphone
+             * @param {number} recordingStartTime - When recording started
+             */
+            function startVAD(stream, recordingStartTime) {
+                audioContext = new AudioContext();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                silenceStart = null;
+                
+                vadInterval = setInterval(() => {
+                    if (!isRecording) {
+                        clearInterval(vadInterval);
+                        return;
+                    }
+                    
+                    analyser.getByteFrequencyData(dataArray);
+                    const rms = calculateRMS(dataArray);
+                    
+                    // Update visual feedback
+                    updateAudioBars(rms);
+                    
+                    const recordingTime = Date.now() - recordingStartTime;
+                    
+                    // Check for silence
+                    if (rms < VAD_CONFIG.silenceThreshold) {
+                        if (silenceStart === null) {
+                            silenceStart = Date.now();
+                        }
+                        
+                        const silenceDuration = Date.now() - silenceStart;
+                        const remainingTime = Math.max(0, VAD_CONFIG.silenceDuration - silenceDuration);
+                        
+                        // Show silence state with countdown
+                        if (silenceDuration > 300 && recordingTime > VAD_CONFIG.minRecordingTime) {
+                            setVoiceState('silence');
+                            silenceCountdown.textContent = (remainingTime / 1000).toFixed(1) + 's';
+                        }
+                        
+                        // Auto-stop after silence duration (only if we've recorded enough)
+                        if (silenceDuration >= VAD_CONFIG.silenceDuration && recordingTime > VAD_CONFIG.minRecordingTime) {
+                            console.log('🎤 VAD: Silence detected, auto-stopping...');
+                            mediaRecorder.stop();
+                        }
+                    } else {
+                        // Voice detected - reset silence timer
+                        if (silenceStart !== null) {
+                            silenceStart = null;
+                            setVoiceState('listening');
+                        }
+                    }
+                    
+                    // Max recording time safety
+                    if (recordingTime >= VAD_CONFIG.maxRecordingTime) {
+                        console.log('🎤 VAD: Max recording time reached');
+                        mediaRecorder.stop();
+                    }
+                    
+                }, VAD_CONFIG.analysisInterval);
+            }
+            
+            /**
+             * Stop VAD monitoring and cleanup
+             */
+            function stopVAD() {
+                if (vadInterval) {
+                    clearInterval(vadInterval);
+                    vadInterval = null;
+                }
+                if (audioContext && audioContext.state !== 'closed') {
+                    audioContext.close();
+                    audioContext = null;
+                }
+                analyser = null;
+                silenceStart = null;
+            }
+            
+            // Voice button click handler
             voiceBtn.addEventListener('click', async () => {
                 if (!state.modelsLoaded) {
                     addMessage('assistant', '⚠️ Please load the models first.');
@@ -2464,17 +2683,20 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 
                 if (state.isTranscribing) return;
                 
+                // If already recording, stop manually
                 if (isRecording && mediaRecorder) {
+                    console.log('🎤 Manual stop');
                     mediaRecorder.stop();
                     return;
                 }
                 
+                // Load Whisper if needed
                 if (!state.whisperPipeline) {
                     voiceBtn.disabled = true;
-                    addMessage('assistant', '🎤 Loading Whisper STT model...');
+                    addMessage('assistant', '🎤 Loading Whisper STT model for voice input...');
                     try {
                         state.whisperPipeline = await state.pipelineFactory('automatic-speech-recognition', CONFIG.WHISPER_MODEL);
-                        addMessage('assistant', '✅ Whisper ready!');
+                        addMessage('assistant', '✅ Whisper ready! Click the microphone to start speaking.');
                     } catch (error) {
                         addMessage('assistant', `❌ Failed to load Whisper: ${error.message}`);
                         voiceBtn.disabled = false;
@@ -2484,37 +2706,48 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 }
                 
                 try {
+                    // Request microphone access
                     const stream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: { sampleRate: 16000, channelCount: 1 }
+                        audio: { 
+                            sampleRate: 16000, 
+                            channelCount: 1,
+                            echoCancellation: true,
+                            noiseSuppression: true
+                        }
                     });
                     
                     mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
                     audioChunks = [];
                     isRecording = true;
+                    const recordingStartTime = Date.now();
                     
+                    // Collect audio data
                     mediaRecorder.ondataavailable = (e) => {
                         if (e.data.size > 0) audioChunks.push(e.data);
                     };
                     
+                    // Handle recording stop
                     mediaRecorder.onstop = async () => {
                         isRecording = false;
+                        stopVAD();
                         stream.getTracks().forEach(track => track.stop());
-                        voiceIndicator.querySelector('span').textContent = 'Transcribing...';
-                        voiceBtn.classList.remove('text-red-500');
-                        voiceBtn.classList.add('text-yellow-500');
+                        
+                        setVoiceState('processing');
                         state.isTranscribing = true;
                         
                         try {
                             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                            const audioContext = new AudioContext({ sampleRate: 16000 });
+                            const decodeContext = new AudioContext({ sampleRate: 16000 });
                             const arrayBuffer = await audioBlob.arrayBuffer();
-                            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                            const audioBuffer = await decodeContext.decodeAudioData(arrayBuffer);
                             
+                            // Convert to mono if needed
                             let audioData = audioBuffer.numberOfChannels > 1
                                 ? new Float32Array(audioBuffer.getChannelData(0).length).map((_, i) => 
                                     (audioBuffer.getChannelData(0)[i] + audioBuffer.getChannelData(1)[i]) / 2)
                                 : audioBuffer.getChannelData(0);
                             
+                            // Resample if needed
                             if (audioBuffer.sampleRate !== 16000) {
                                 const ratio = audioBuffer.sampleRate / 16000;
                                 const newLength = Math.round(audioData.length / ratio);
@@ -2525,45 +2758,55 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                                 audioData = resampled;
                             }
                             
-                            await audioContext.close();
+                            await decodeContext.close();
                             
-                            const result = await state.whisperPipeline(audioData, { language: 'english', task: 'transcribe' });
+                            // Transcribe with Whisper
+                            const result = await state.whisperPipeline(audioData, { 
+                                language: 'english', 
+                                task: 'transcribe' 
+                            });
                             const transcription = result.text.trim();
                             
-                            voiceIndicator.classList.add('hidden');
-                            voiceBtn.classList.remove('text-yellow-500');
+                            setVoiceState('hidden');
                             state.isTranscribing = false;
                             
                             if (transcription && transcription.length > 0) {
+                                console.log('🎤 Transcription:', transcription);
                                 handleChat(transcription);
                             } else {
-                                addMessage('assistant', '🎤 Could not detect any speech. Please try again.');
+                                addMessage('assistant', '🎤 No speech detected. Please try again and speak clearly.');
                             }
                         } catch (error) {
                             console.error('Transcription error:', error);
-                            voiceIndicator.classList.add('hidden');
-                            voiceBtn.classList.remove('text-yellow-500');
+                            setVoiceState('hidden');
                             state.isTranscribing = false;
                             addMessage('assistant', `❌ Transcription error: ${error.message}`);
                         }
                     };
                     
-                    mediaRecorder.start();
-                    voiceIndicator.classList.remove('hidden');
-                    voiceIndicator.querySelector('span').textContent = 'Listening...';
-                    voiceBtn.classList.add('text-red-500');
+                    // Start recording
+                    mediaRecorder.start(100); // Collect data every 100ms
+                    setVoiceState('listening');
                     
-                    setTimeout(() => {
-                        if (mediaRecorder && mediaRecorder.state === 'recording') {
-                            mediaRecorder.stop();
-                        }
-                    }, 15000);
+                    // Start VAD monitoring
+                    startVAD(stream, recordingStartTime);
+                    
+                    console.log('🎤 Recording started with VAD...');
                     
                 } catch (error) {
                     console.error('Microphone error:', error);
                     addMessage('assistant', '❌ Could not access microphone. Please check permissions.');
                 }
             });
+            
+            // Override TTS to show speaking state
+            const originalSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
+            window.speechSynthesis.speak = function(utterance) {
+                setVoiceState('speaking');
+                utterance.onend = () => setVoiceState('hidden');
+                utterance.onerror = () => setVoiceState('hidden');
+                return originalSpeak(utterance);
+            };
         });
     </script>
 </body>
