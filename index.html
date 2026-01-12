@@ -675,113 +675,322 @@ FORMATTING:
                     const textContent = await page.getTextContent();
                     const viewport = page.getViewport({ scale: 1.0 });
 
-                    // 1. Normalisation des items
-                    // On convertit tout en coordonnées absolues (0,0 en haut à gauche)
+                    // ============================================
+                    // SECTION DETECTION PATTERNS (Multi-format)
+                    // ============================================
+                    const SECTION_PATTERNS = {
+                        // Major sections (Level 1) - English & French
+                        major: [
+                            /^(Abstract|Résumé|Summary)$/i,
+                            /^(Introduction)$/i,
+                            /^(Background|Contexte|État de l'art|Related Work|Travaux connexes)$/i,
+                            /^(Method(?:s|ology)?|Méthode(?:s|ologie)?|Materials?\s*(?:and|&)\s*Methods?)$/i,
+                            /^(Results?|Résultats?|Findings)$/i,
+                            /^(Discussion|Analyse)$/i,
+                            /^(Conclusion|Conclusions?)$/i,
+                            /^(References?|Bibliograph(?:y|ie)|Références|Literature Cited|Works Cited)$/i,
+                            /^(Appendi(?:x|ces)|Annexe?s?)$/i,
+                            /^(Acknowledg(?:e)?ments?|Remerciements)$/i,
+                            /^(Supplementary|Supporting Information|Données supplémentaires)$/i,
+                        ],
+                        // Numbered sections: "1 Introduction", "1. Introduction", "I. Introduction"
+                        numberedMajor: /^([1-9]|[IVX]+)[\.)]\s*([A-Z][a-zéèêëàâäùûüôöîï]+)/,
+                        // Subsections: "1.1", "1.1.1", "A.1", "1.1 Title"
+                        subsection: /^(\d+\.\d+(?:\.\d+)?|\d+\.[a-z]|[A-Z]\.\d+)[\.)]?\s*(.*)/i,
+                        // Letter subsections: "(a)", "a)", "a."
+                        letterSubsection: /^\(?([a-z])\)[\.)]?\s*(.*)/i,
+                        // Figure/Table captions
+                        floats: /^(Figure|Fig\.|Table|Tableau|Equation|Eq\.)\s*(\d+)/i,
+                    };
+
+                    // ============================================
+                    // FONT SIZE ANALYSIS (for hierarchy detection)
+                    // ============================================
+                    const fontSizes = textContent.items
+                        .map(item => Math.abs(item.transform[0]))
+                        .filter(size => size > 0);
+                    
+                    const avgFontSize = fontSizes.length > 0 
+                        ? fontSizes.reduce((a, b) => a + b, 0) / fontSizes.length 
+                        : 10;
+                    
+                    const maxFontSize = Math.max(...fontSizes, 12);
+                    
+                    // Thresholds for section detection
+                    const TITLE_SIZE_THRESHOLD = avgFontSize * 1.2;      // 20% larger = likely title
+                    const MAJOR_TITLE_THRESHOLD = avgFontSize * 1.4;    // 40% larger = major section
+
+                    // ============================================
+                    // NORMALIZE ITEMS WITH POSITION
+                    // ============================================
                     const items = textContent.items.map(item => {
                         const tx = item.transform;
-                        // Calculer la position visuelle réelle
-                        // Note: En PDF, Y=0 est en bas. On inverse pour avoir Y=0 en haut.
                         const x = tx[4];
-                        const y = viewport.height - tx[5]; 
-                        const w = item.width;
-                        const h = item.height;
+                        const y = viewport.height - tx[5];
+                        const fontSize = Math.abs(tx[0]);
+                        const isBold = item.fontName?.toLowerCase().includes('bold') || false;
+                        const isItalic = item.fontName?.toLowerCase().includes('italic') || false;
 
                         return {
                             str: item.str,
-                            x: x,
-                            y: y,
-                            w: w,
-                            h: h,
-                            bottom: y + h,
-                            right: x + w
+                            x, y,
+                            w: item.width,
+                            h: item.height,
+                            fontSize,
+                            isBold,
+                            isItalic,
+                            bottom: y + item.height,
+                            right: x + item.width
                         };
                     });
 
-                    // 2. Détection automatique des colonnes (Heuristique de la "Gouttière")
+                    // ============================================
+                    // DETECT COLUMNS (Same as before)
+                    // ============================================
                     const pageMidX = viewport.width / 2;
                     let isTwoColumn = true;
-                    
-                    // On tolère une marge de 10% au centre
                     const centerZoneStart = pageMidX - (viewport.width * 0.05);
                     const centerZoneEnd = pageMidX + (viewport.width * 0.05);
 
                     for (const item of items) {
-                        // Si un texte traverse le milieu, ce n'est probablement pas du 2 colonnes
                         if (item.x < centerZoneStart && item.right > centerZoneEnd) {
                             isTwoColumn = false;
                             break;
                         }
                     }
 
-                    // 3. Tri intelligent selon le layout
+                    // ============================================
+                    // SORT ITEMS BY READING ORDER
+                    // ============================================
                     items.sort((a, b) => {
                         if (isTwoColumn) {
-                            // LOGIQUE 2 COLONNES :
                             const aIsLeft = a.x < pageMidX;
                             const bIsLeft = b.x < pageMidX;
-
-                            if (aIsLeft !== bIsLeft) {
-                                // Celui de gauche passe TOUJOURS avant celui de droite
-                                return aIsLeft ? -1 : 1;
-                            }
-                            // S'ils sont dans la même colonne, on trie par Y
-                            if (Math.abs(a.y - b.y) < 5) {
-                                return a.x - b.x; // Même ligne
-                            }
+                            if (aIsLeft !== bIsLeft) return aIsLeft ? -1 : 1;
+                            if (Math.abs(a.y - b.y) < 5) return a.x - b.x;
                             return a.y - b.y;
                         } else {
-                            // LOGIQUE 1 COLONNE (Classique) :
-                            if (Math.abs(a.y - b.y) < 5) {
-                                return a.x - b.x;
-                            }
+                            if (Math.abs(a.y - b.y) < 5) return a.x - b.x;
                             return a.y - b.y;
                         }
                     });
 
-                    // 4. Reconstruction du texte
+                    // ============================================
+                    // RECONSTRUCT TEXT WITH SECTION MARKERS
+                    // ============================================
                     let text = '';
                     let lastY = -999;
-                    let lastX = -999;
-                    let possibleChapterTitle = null;
-                    const lineHeightThreshold = 15; 
+                    const lineHeightThreshold = 15;
+                    
+                    // Detected sections for this page
+                    const detectedSections = [];
+                    let currentLine = '';
+                    let currentLineY = -999;
+                    let currentLineFontSize = 0;
+                    let currentLineIsBold = false;
 
-                    for (const item of items) {
+                    /**
+                     * Analyze a complete line and detect if it's a section header
+                     */
+                    function analyzeLine(line, fontSize, isBold, yPosition) {
+                        const trimmedLine = line.trim();
+                        if (trimmedLine.length < 2 || trimmedLine.length > 150) return null;
+
+                        // Check major section patterns
+                        for (const pattern of SECTION_PATTERNS.major) {
+                            if (pattern.test(trimmedLine)) {
+                                return {
+                                    type: 'MAJOR',
+                                    level: 1,
+                                    title: trimmedLine,
+                                    y: yPosition
+                                };
+                            }
+                        }
+
+                        // Check numbered major sections (1. Introduction, I. Background)
+                        const numberedMatch = trimmedLine.match(SECTION_PATTERNS.numberedMajor);
+                        if (numberedMatch && (fontSize >= TITLE_SIZE_THRESHOLD || isBold)) {
+                            return {
+                                type: 'NUMBERED_MAJOR',
+                                level: 1,
+                                number: numberedMatch[1],
+                                title: trimmedLine,
+                                y: yPosition
+                            };
+                        }
+
+                        // Check subsections (1.1, 1.1.1, etc.)
+                        const subsectionMatch = trimmedLine.match(SECTION_PATTERNS.subsection);
+                        if (subsectionMatch) {
+                            const depth = (subsectionMatch[1].match(/\./g) || []).length + 1;
+                            return {
+                                type: 'SUBSECTION',
+                                level: Math.min(depth + 1, 4),  // Cap at level 4
+                                number: subsectionMatch[1],
+                                title: trimmedLine,
+                                y: yPosition
+                            };
+                        }
+
+                        // Check by font size alone (large = likely header)
+                        if (fontSize >= MAJOR_TITLE_THRESHOLD && isBold && trimmedLine.length < 80) {
+                            // Likely a section title based on formatting
+                            return {
+                                type: 'FORMATTED_HEADER',
+                                level: 2,
+                                title: trimmedLine,
+                                y: yPosition
+                            };
+                        }
+
+                        // Check figure/table captions
+                        const floatMatch = trimmedLine.match(SECTION_PATTERNS.floats);
+                        if (floatMatch) {
+                            return {
+                                type: 'FLOAT',
+                                level: 0,  // Not a real section
+                                floatType: floatMatch[1],
+                                number: floatMatch[2],
+                                title: trimmedLine,
+                                y: yPosition
+                            };
+                        }
+
+                        return null;
+                    }
+
+                    // Process items and build text
+                    for (let i = 0; i < items.length; i++) {
+                        const item = items[i];
+
+                        // Detect line breaks
                         if (lastY !== -999) {
                             const verticalGap = item.y - lastY;
-                            if (verticalGap > lineHeightThreshold) {
-                                text += '\n';
-                                if (verticalGap > lineHeightThreshold * 2) text += '\n';
-                            } else if (Math.abs(item.y - lastY) < 5 && item.x > lastX + 5) {
-                                text += ' ';
+
+                            if (verticalGap > lineHeightThreshold || Math.abs(item.y - currentLineY) > 5) {
+                                // End of line - analyze it
+                                if (currentLine.trim()) {
+                                    const sectionInfo = analyzeLine(
+                                        currentLine, 
+                                        currentLineFontSize, 
+                                        currentLineIsBold,
+                                        currentLineY
+                                    );
+                                    
+                                    if (sectionInfo) {
+                                        detectedSections.push(sectionInfo);
+                                        // Add marker in text for later chunking
+                                        text += `\n[§${sectionInfo.level}:${sectionInfo.title}]\n`;
+                                    }
+                                }
+
+                                // Add line breaks
+                                if (verticalGap > lineHeightThreshold) {
+                                    text += '\n';
+                                    if (verticalGap > lineHeightThreshold * 2) text += '\n';
+                                }
+
+                                // Reset line tracking
+                                currentLine = '';
+                                currentLineFontSize = 0;
+                                currentLineIsBold = false;
                             }
                         }
-                        text += item.str;
-                        lastY = item.y;
-                        lastX = item.right;
 
-                        // Détection basique de titre
-                        if (!possibleChapterTitle && item.h > 12 && item.str.length > 3) {
-                            if (/^(Abstract|Introduction|Methods|Results|Discussion|Conclusion|References|\d+\s+[A-Z])/.test(item.str)) {
-                                possibleChapterTitle = item.str;
-                            }
+                        // Build current line
+                        if (Math.abs(item.y - currentLineY) < 5 && item.x > (items[i-1]?.right || 0) + 3) {
+                            currentLine += ' ';
+                        }
+                        currentLine += item.str;
+                        text += item.str;
+                        
+                        // Track line properties (use max font size in line)
+                        if (item.fontSize > currentLineFontSize) {
+                            currentLineFontSize = item.fontSize;
+                        }
+                        if (item.isBold) currentLineIsBold = true;
+                        currentLineY = item.y;
+                        lastY = item.y;
+                    }
+
+                    // Analyze final line
+                    if (currentLine.trim()) {
+                        const sectionInfo = analyzeLine(currentLine, currentLineFontSize, currentLineIsBold, currentLineY);
+                        if (sectionInfo) {
+                            detectedSections.push(sectionInfo);
                         }
                     }
 
+                    // ============================================
+                    // BUILD METADATA
+                    // ============================================
                     const metadata = {
                         pageNum: pageNum,
-                        chapterTitle: possibleChapterTitle
+                        sections: detectedSections,
+                        isTwoColumn: isTwoColumn,
+                        avgFontSize: avgFontSize.toFixed(1)
                     };
 
+                    // Detect document title on first page
                     if (pageNum === 1) {
                         metadata.isFirstPage = true;
-                        metadata.possibleTitle = text.split('\n').slice(0, 3).join(' ').trim();
+                        // Title is usually the largest text in top third of page
+                        const topThirdItems = items.filter(item => item.y < viewport.height / 3);
+                        const largestItem = topThirdItems.reduce((max, item) => 
+                            item.fontSize > (max?.fontSize || 0) ? item : max, null);
+                        if (largestItem) {
+                            metadata.possibleTitle = largestItem.str;
+                        }
                     }
 
+                    // Main chapter title (first major section found)
+                    const majorSection = detectedSections.find(s => s.level === 1);
+                    if (majorSection) {
+                        metadata.chapterTitle = majorSection.title;
+                    }
+
+                    // Detect if this page contains bibliography
+                    const hasBibliography = detectedSections.some(s => 
+                        /^(References?|Bibliograph|Références|Literature Cited)/i.test(s.title)
+                    );
+                    if (hasBibliography) {
+                        metadata.containsBibliography = true;
+                    }
+                    // ============================================
+                    // 👇 DÉBUT DU BLOC LOGS À AJOUTER 👇
+                    // ============================================
+                    
+                    // Création d'un groupe pliable dans la console pour ne pas polluer
+                    console.groupCollapsed(`📄 Page ${pageNum} Analysis (${isTwoColumn ? '2 Cols' : '1 Col'})`);
+                    
+                    if (detectedSections.length > 0) {
+                        console.log("📍 Sections détectées :");
+                        // Affiche un tableau propre des titres trouvés sur la page
+                        console.table(detectedSections.map(s => ({ 
+                            Type: s.type, 
+                            Level: s.level, 
+                            Title: s.title,
+                            Y: Math.round(s.y)
+                        })));
+                    } else {
+                        console.log("ℹ️ Aucune section détectée sur cette page.");
+                    }
+
+                    console.log("📝 Aperçu du texte extrait (300 premiers caractères) :");
+                    // Affiche le texte en vert avec les sauts de ligne visibles
+                    console.log(`%c${text.substring(0, 1000000).replace(/\n/g, ' ↵ ')}...`, "color: #10b981; font-family: monospace;");
+                    
+                    console.groupEnd(); 
+                    
+                    // ============================================
+                    // 👆 FIN DU BLOC LOGS 👆
+                    // ============================================
                     return { pageNum: index, text: text.trim(), metadata };
 
                 } catch (error) {
                     console.warn(`Error extracting page ${pageNum}:`, error);
-                    return { pageNum: index, text: '', metadata: { pageNum: pageNum } };
+                    return { pageNum: index, text: '', metadata: { pageNum: pageNum, sections: [] } };
                 }
             }
             
