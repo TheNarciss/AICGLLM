@@ -251,20 +251,22 @@
                         <div>
                             <label class="text-sm text-slate-400 mb-1 block">System Prompt</label>
                             <textarea id="system-prompt" rows="6"
-                                      class="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-slate-200 resize-none focus:outline-none focus:border-blue-500">You are a precise research assistant analyzing scientific documents.
+                                      class="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-slate-200 resize-none focus:outline-none focus:border-blue-500">You are an expert academic research assistant analyzing scientific documents.
 
 STRICT RULES:
 1. ONLY use information from the provided context - never invent facts
-2. QUOTE relevant passages using "..." when making specific claims
-3. CITE page numbers when available: [Page X] or [Source: filename]
+2. Use inline citations: [1], [2], etc. matching the source numbers in context
+3. QUOTE key passages using "..." when making specific claims
 4. If information is NOT in the context, say: "The documents do not contain this information."
 5. For numbers, dates, or statistics: quote exactly from the source
+FOR LITERATURE REVIEWS:
+Structure your response as:
+- **Introduction**: Brief overview of the topic
+- **Key Themes**: Compare and contrast findings across papers
+- **Methodology Comparison**: How different papers approached the topic
+- **Conclusion**: Synthesis of main insights
 
-RESPONSE FORMAT:
-- Start with a direct answer to the question
-- Support claims with quotes from the context
-- End with a brief source summary
-
+Always cite specific sources with [1], [2], etc.
 NEVER hallucinate facts, dates, statistics, or claims not explicitly in the context.</textarea>
                         </div>
                     </div>
@@ -1153,10 +1155,20 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         // UTILITY FUNCTIONS
         // ============================================
         
+        /**
+         * Cosine Similarity: Measures similarity between two vectors
+         * Formula: similarity = (A · B) / (||A|| × ||B||)
+         * Since embeddings are normalized, we only compute dot product.
+         * Optimized with loop unrolling (4x) for performance.
+         * @param {Float32Array} vecA - First embedding vector
+         * @param {Float32Array} vecB - Second embedding vector
+         * @returns {number} Similarity score between 0 and 1
+         */
         function cosineSimilarity(vecA, vecB) {
             const len = vecA.length;
             if (len !== vecB.length) return 0;
             
+            // Loop unrolling for ~4x speedup on large vectors
             let dot = 0;
             const remainder = len % 4;
             let i = 0;
@@ -1349,17 +1361,28 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 .slice(0, topK);
         }
         
-        // Reciprocal Rank Fusion
+        /**
+         * Reciprocal Rank Fusion (RRF)
+         * Combines results from multiple ranking systems (semantic + keyword)
+         * Formula: score(d) = Σ 1/(k + rank_i) for each ranking system i
+         * k=60 is the standard constant that balances high and low-ranked documents
+         * @param {Array} semanticResults - Results from semantic search
+         * @param {Array} keywordResults - Results from keyword search  
+         * @param {number} k - Ranking constant (default: 60)
+         * @returns {Array} Merged and re-ranked results
+         */
         function reciprocalRankFusion(semanticResults, keywordResults, k = 60) {
             const scores = new Map();
             const chunks = new Map();
             
+            // Score from semantic search
             semanticResults.forEach((item, rank) => {
                 const id = item.id || `sem-${rank}`;
                 scores.set(id, (scores.get(id) || 0) + 1 / (k + rank + 1));
                 chunks.set(id, item);
             });
             
+            // Score from keyword search
             keywordResults.forEach((item, rank) => {
                 const id = item.id || `kw-${rank}`;
                 scores.set(id, (scores.get(id) || 0) + 1 / (k + rank + 1));
@@ -1368,6 +1391,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 }
             });
             
+            // Sort by combined RRF score
             const results = [...scores.entries()]
                 .sort((a, b) => b[1] - a[1])
                 .map(([id, rrfScore]) => {
@@ -2089,18 +2113,34 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         showContextPanel(relevantChunks);
                         
                         // Build context with page numbers for better citations
-                        contextText = relevantChunks.map((chunk, i) => {
+                        // IMPORTANT: Truncate to ~3000 tokens (~12000 chars) to fit in 4096 context window
+                        const MAX_CONTEXT_CHARS = 10000;
+                        let totalChars = 0;
+                        const usedChunks = [];
+                        
+                        for (const chunk of relevantChunks) {
                             const pageInfo = chunk.pageStart ? 
                                 (chunk.pageStart === chunk.pageEnd ? 
                                     `Page ${chunk.pageStart}` : 
                                     `Pages ${chunk.pageStart}-${chunk.pageEnd}`) : 
                                 '';
-                            return `[Source: ${chunk.source}${pageInfo ? ' | ' + pageInfo : ''}${chunk.section ? ' | Section: ' + chunk.section : ''}]\n${chunk.text}`;
-                        }).join('\n\n---\n\n');
+                            const chunkText = `[${usedChunks.length + 1}] [Source: ${chunk.source}${pageInfo ? ' | ' + pageInfo : ''}]\n${chunk.text}`;
+                            
+                            if (totalChars + chunkText.length > MAX_CONTEXT_CHARS) {
+                                console.log(`⚠️ Context truncated: using ${usedChunks.length}/${relevantChunks.length} chunks`);
+                                break;
+                            }
+                            
+                            usedChunks.push(chunkText);
+                            totalChars += chunkText.length;
+                        }
+                        
+                        contextText = usedChunks.join('\n\n---\n\n');
                         
                         retrievalMetrics.topSimilarity = relevantChunks[0].similarity || relevantChunks[0].rrfScore || 0;
                         retrievalMetrics.avgSimilarity = relevantChunks.reduce((sum, c) => sum + (c.similarity || c.rrfScore || 0), 0) / relevantChunks.length;
                         retrievalMetrics.sourceDiversity = new Set(relevantChunks.map(c => c.source)).size;
+                        retrievalMetrics.chunksUsed = usedChunks.length;
                     }
                 }
                 

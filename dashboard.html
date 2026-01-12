@@ -45,7 +45,7 @@
                 </div>
                 <a href="./index.html" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600/30 transition-colors text-sm">
                     <i class="fas fa-arrow-left"></i>
-                    <span>Back to App </span>
+                    <span>Back to App</span>
                 </a>
                 <button id="refresh-btn" class="flex items-center gap-2 px-3 py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors text-sm">
                     <i class="fas fa-sync-alt"></i>
@@ -1122,19 +1122,32 @@
             const satisfaction = totalVotes > 0
                 ? Math.round((agg.totalThumbsUp / totalVotes) * 100)
                 : 0;
+            
+            // Compute self-eval from queries (same as display)
+            const avg = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+            const queriesWithSelfEval = allQueries.filter(q => q.selfEval);
+            const faithfulness = avg(queriesWithSelfEval.map(q => q.selfEval?.faithfulness || 0));
+            const relevance = avg(queriesWithSelfEval.map(q => q.selfEval?.relevance || 0));
+            const coherence = avg(queriesWithSelfEval.map(q => q.selfEval?.coherence || 0));
+            
+            // Compute advanced metrics from queries
+            const ctxUtil = avg(allQueries.map(q => q.advanced?.contextUtilization || 0));
+            const grounding = avg(allQueries.map(q => q.advanced?.answerGrounding || 0));
+            const hallucination = avg(allQueries.map(q => q.advanced?.hallucinationScore || 0));
                 
             return `Analyze these RAG system metrics and provide insights:
 
-## Metrics Summary (Aggregated from ${agg.totalSessions || data.sessions.length} users)
-- Total Sessions: ${agg.totalSessions || data.sessions.length}
-- Total Queries: ${agg.totalQueries || allQueries.length}
+## Metrics Summary (Aggregated from ${agg.totalSessions || data.sessions.length} sessions, ${allQueries.length} queries)
 - User Satisfaction: ${satisfaction}% (${agg.totalThumbsUp || 0} up, ${agg.totalThumbsDown || 0} down)
 - Avg TTFT: ${Math.round(agg.avgTTFT) || 0}ms
 - Avg TPS: ${Math.round(agg.avgTPS) || 0} tokens/sec
-- Avg Top Similarity: ${agg.avgTopSimilarity || 0}
-- Self-Eval Faithfulness: ${agg.avgSelfEvalFaithfulness || 0}/5
-- Self-Eval Relevance: ${agg.avgSelfEvalRelevance || 0}/5
-- Self-Eval Coherence: ${agg.avgSelfEvalCoherence || 0}/5
+- Avg Top Similarity: ${(agg.avgTopSimilarity || 0).toFixed(3)}
+- Context Utilization: ${Math.round(ctxUtil * 100)}%
+- Answer Grounding: ${Math.round(grounding * 100)}%
+- Hallucination Score: ${Math.round(hallucination * 100)}%
+- Self-Eval Faithfulness: ${faithfulness.toFixed(1)}/5 (from ${queriesWithSelfEval.length} evals)
+- Self-Eval Relevance: ${relevance.toFixed(1)}/5
+- Self-Eval Coherence: ${coherence.toFixed(1)}/5
 
 Provide a brief analysis with:
 1. **Strengths** - What's working well

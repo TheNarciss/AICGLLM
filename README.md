@@ -1,72 +1,61 @@
 # 📚 Local LLM Literature Reviewer
 
-> A privacy-first, fully browser-based AI research assistant that runs entirely on the client side.
+> A privacy-first, fully browser-based AI research assistant powered by WebLLM and Transformers.js. No cloud, no data sharing - everything runs locally on your device.
 
 ![Interface Preview](preview.png)
 
-## 🌟 Features
+## 🎯 Project Overview
 
-### 🔒 100% Private & Local
-- **No Cloud Required**: All processing happens in your browser
-- **No Data Leaves Your Device**: Your research papers stay private
-- **Offline Capable**: Once models are loaded, works without internet
+This application enables researchers to analyze multiple PDF research papers simultaneously using a local Large Language Model. The RAG (Retrieval-Augmented Generation) pipeline runs entirely in the browser, ensuring complete privacy for sensitive research documents.
 
-### 📄 Smart Document Processing (RAG Engine)
-- **PDF Ingestion**: Drag & drop multiple research papers
-- **Intelligent Chunking**: Sliding window algorithm (500 chars, 100 overlap)
-- **Vector Embeddings**: Using Xenova/all-MiniLM-L6-v2
-- **Custom Vector Database**: In-memory similarity search
+### ✨ Key Features
 
-### 🤖 AI-Powered Analysis
-- **WebLLM Integration**: Runs Llama-3.2-1B directly in browser via WebGPU
-- **Context-Aware Responses**: RAG retrieval for accurate answers
-- **Literature Review Generation**: Synthesizes themes across papers
-- **Source Citations**: Shows which papers were used for each answer
-
-### 🎛️ Customizable Controls
-- **Temperature Adjustment**: Control creativity vs precision
-- **Top-K Chunks**: Adjust how much context is retrieved
-- **Custom System Prompts**: Tailor the AI's behavior
-- **Memory Bank Visualization**: See document stats in real-time
+| Feature | Description |
+|---------|-------------|
+| 🔒 **100% Local** | All processing happens in your browser - no data sent to servers |
+| 📄 **Multi-PDF Support** | Upload and analyze multiple research papers simultaneously |
+| 🔍 **Hybrid Search** | Combines semantic embeddings + keyword matching (RRF) for best results |
+| 📊 **Analytics Dashboard** | Track performance metrics, grounding scores, and user feedback |
+| 🎤 **Voice Interface** | Speech-to-Text (Whisper) and Text-to-Speech support |
+| ⚡ **Smart Caching** | IndexedDB caching for instant re-uploads (7-day expiry) |
+| 📑 **Page Citations** | Inline citations with page numbers `[1] [Page 5]` |
 
 ## 🛠️ Tech Stack
 
-| Technology | Purpose |
-|------------|---------|
-| **WebLLM** | In-browser LLM inference via WebGPU |
-| **Transformers.js** | Embeddings with all-MiniLM-L6-v2 |
-| **PDF.js** | PDF text extraction |
-| **Tailwind CSS** | Responsive UI styling |
-| **Vanilla JavaScript** | No framework dependencies |
+| Technology | Purpose | Version |
+|------------|---------|---------|
+| **WebLLM** | In-browser LLM inference via WebGPU | Latest |
+| **Transformers.js** | Embeddings (all-MiniLM-L6-v2) + Whisper STT | 2.17.1 |
+| **PDF.js** | PDF text extraction with parallel processing | 3.11.174 |
+| **Tailwind CSS** | Responsive UI styling | CDN |
+| **Firebase** | Analytics persistence (optional) | 11.7.0 |
+| **IndexedDB** | Client-side document caching | Native |
+| **Vanilla JavaScript** | No framework dependencies | ES2020 |
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Modern browser with **WebGPU support**:
-  - Chrome 113+ ✅
-  - Edge 113+ ✅
-  - Firefox (behind flag) ⚠️
-  - Safari (experimental) ⚠️
-- ~4GB RAM for model loading
-- GPU with WebGPU capabilities
+
+- **Browser**: Chrome 113+ or Edge 113+ with WebGPU support
+- **RAM**: 8GB minimum (16GB recommended for 3B model)
+- **GPU**: WebGPU-compatible graphics card
 
 ### Local Development
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/lit-reviewer.git
-   cd lit-reviewer
+   git clone https://github.com/TheNarciss/AICGLLM.git
+   cd AICGLLM
    ```
 
-2. **Start a local server** (required for ES Modules)
+2. **Start the local server** (required for COOP/COEP headers)
    ```bash
-   # Using Python
+   python server.py
+   ```
+   
+   Or with Python's built-in server:
+   ```bash
    python -m http.server 8000
-   
-   # Or using Node.js
-   npx serve .
-   
-   # Or using VS Code Live Server extension
    ```
 
 3. **Open in browser**
@@ -74,43 +63,44 @@
    http://localhost:8000
    ```
 
-4. **Load the models** by clicking the "Load Models" button
-
-5. **Upload PDFs** and start asking questions!
+4. **Load models** and start analyzing papers!
 
 ### GitHub Pages Deployment
 
-The app is deployed and accessible at:
-```
-https://yourusername.github.io/lit-reviewer/
-```
+Live demo: **https://yourusername.github.io/AICGLLM/**
+
+> ⚠️ Note: For full WebGPU functionality, we recommend Cloudflare Pages or Netlify with the provided `_headers` file for COOP/COEP support.
 
 ## 📖 Usage Guide
 
 ### Step 1: Load Models
-Click the **"Load Models"** button. This will:
-- Download the embedding model (~30MB)
-- Download the LLM model (~500MB)
-- Initialize WebGPU inference
-
-⏱️ First load takes 2-5 minutes depending on your connection.
+Click **"Load Models"** to initialize:
+- 📦 Embedding model (~30MB) - for semantic search
+- 🤖 LLM model (3B: ~1.5GB, 1B fallback: ~500MB) - for generation
+- 🎤 Whisper tiny (~40MB) - for voice input
 
 ### Step 2: Upload Research Papers
 - Drag & drop PDF files onto the upload zone
-- Or click to browse and select files
-- Watch the progress as text is extracted and embedded
+- Multiple files supported simultaneously
+- Progress shows: extraction → chunking → embedding phases
+- **Cached documents load instantly** on re-upload (⚡ <1 second)
 
 ### Step 3: Ask Questions
 Example queries:
-- "What are the main themes across these papers?"
-- "Compare the methodologies used in the uploaded papers"
-- "Generate a literature review of the uploaded papers"
-- "What do the authors say about [specific topic]?"
+- *"What are the main themes across these papers?"*
+- *"Compare the methodologies used"*
+- *"Generate a literature review"*
+- *"What does Paper A say about [topic] vs Paper B?"*
 
-### Step 4: Review Sources
-Each response shows which papers were used as context, ensuring transparency and traceability.
+### Step 4: Review with Citations
+Responses include:
+- Inline citations `[1]`, `[2]` referencing source documents
+- Page numbers: `[Page 5-7]`
+- Retrieved context panel showing used chunks with similarity scores
 
-## 🧠 How It Works
+## 🧠 Architecture
+
+### RAG Pipeline Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -119,46 +109,88 @@ Each response shows which papers were used as context, ensuring transparency and
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              PDF.js Text Extraction                          │
+│     PDF.js Parallel Extraction (8 pages/batch)              │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│         Chunking (500 chars, 100 overlap)                    │
+│     Page-Aware Chunking (800 chars, 100 overlap)            │
+│     + Chapter/Section Detection                              │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │      Transformers.js Embedding (all-MiniLM-L6-v2)           │
+│      Priority: Overview chunks first for quick start         │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              Vector Store (In-Memory)                        │
+│         Vector Store + IndexedDB Cache (7 days)             │
 └──────────────────────┬──────────────────────────────────────┘
                        │
          User Query    │
               │        │
               ▼        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│         Cosine Similarity Search (Top-K)                     │
+│     Query Classification (Embedding-based)                   │
+│     Generic → Overview chunks | Specific → Hybrid Search     │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│    Context Injection + Chat History + System Prompt          │
+│             Hybrid Search (Semantic + Keyword)               │
+│             Reciprocal Rank Fusion (RRF, k=60)              │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              WebLLM (Llama-3.2-1B-Instruct)                  │
+│         Context Truncation (~3000 tokens max)               │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   Response + Citations                       │
+│    System Prompt + Context + Chat History → WebLLM          │
+│    (Llama-3.2-3B-Instruct with 1B fallback)                 │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Response with Inline Citations [1][2]          │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### Cosine Similarity Formula
+
+$$\text{similarity} = \frac{\sum (A_i \times B_i)}{\sqrt{\sum A_i^2} \times \sqrt{\sum B_i^2}}$$
+
+### Hybrid Search: Reciprocal Rank Fusion
+
+```javascript
+// Combines semantic and keyword search results
+score(doc) = Σ 1/(k + rank_i)  // k=60, across all rankings
+```
+
+## 📊 Analytics Dashboard
+
+Access via the **"📊 Dashboard"** button to view:
+
+### Tracked Metrics
+
+| Metric | Description | Good | Warning |
+|--------|-------------|------|---------|
+| Context Utilization | % of response words from context | >50% | <30% |
+| Answer Grounding | % of sentences with source overlap | >60% | <40% |
+| Hallucination Score | % of unsupported factual claims | <20% | >40% |
+| TTFT | Time to First Token | <5s | >15s |
+| Throughput | Tokens per second | >10 | <5 |
+
+### Self-Evaluation (LLM-based)
+
+Each response is automatically rated 1-5 on:
+- **Faithfulness**: Uses only context information
+- **Relevance**: Answers the question asked  
+- **Coherence**: Well-structured response
 
 ## 🔧 Configuration
 
@@ -166,65 +198,78 @@ Each response shows which papers were used as context, ensuring transparency and
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| Chunk Size | 500 | Characters per text chunk |
-| Chunk Overlap | 100 | Overlapping characters between chunks |
-| Top-K | 5 | Number of relevant chunks to retrieve |
-| Temperature | 0.7 | LLM creativity (0=focused, 1=creative) |
+| `CHUNK_SIZE` | 800 | Characters per chunk |
+| `CHUNK_OVERLAP` | 100 | Overlap between chunks |
+| `TOP_K` | 10 | Chunks retrieved per query |
+| `Temperature` | 0.3 | LLM creativity (lower = more factual) |
+| `LLM_MODEL` | Llama-3.2-3B | Primary model (auto-fallback to 1B) |
 
 ### System Prompt
-The default system prompt instructs the model to act as an Academic Researcher. You can modify it in the System Controls panel.
 
-## 🎤 Bonus: Voice Features
+Customizable via System Controls panel. Default enforces:
+- ✅ Inline citations `[1]`, `[2]`
+- ✅ Literature review structure (Intro, Themes, Methods, Conclusion)
+- ✅ Anti-hallucination rules
+- ✅ Quote requirements for factual claims
 
-- **Text-to-Speech**: Uses browser's native SpeechSynthesis API
-- **Speech-to-Text**: Microphone input with visual feedback
-- Click the microphone icon to start voice input
+## 🎤 Voice Features (Bonus)
 
-## ⚠️ Troubleshooting
+### Speech-to-Text (STT)
+- Model: `Xenova/whisper-tiny`
+- Click 🎤 microphone icon to record
+- Automatic transcription to chat input
 
-### "WebGPU not supported"
-- Update your browser to the latest version
-- Check if WebGPU is enabled in `chrome://flags` (if using Chrome)
-- Try Chrome Canary or Edge Canary for latest WebGPU support
-
-### "SharedArrayBuffer" errors
-- Run with a dev server that supports COOP/COEP headers
-- Or use a browser profile with reduced security for localhost
-
-### Models fail to load
-- Ensure you have stable internet for initial download
-- Check browser console for specific error messages
-- Try clearing browser cache and reloading
-
-### PDF text extraction fails
-- Some PDFs are image-based and don't contain extractable text
-- Try OCR-processed PDFs instead
-- Check if the PDF is password protected
+### Text-to-Speech (TTS)
+- Uses browser's native `SpeechSynthesis` API
+- Auto-reads responses under 800 characters
+- Toggle on/off in System Controls
 
 ## 📁 Project Structure
 
 ```
-lit-reviewer/
-├── index.html          # Main application (SPA)
-├── README.md           # Documentation
-└── preview.png         # Screenshot for README
+AICGLLM/
+├── index.html              # Main SPA application
+├── dashboard.html          # Analytics dashboard
+├── analytics.js            # Advanced metrics computation
+├── analytics.worker.js     # Off-thread analytics (Web Worker)
+├── embeddings.worker.js    # Off-thread embeddings (Web Worker)
+├── server.py               # Local dev server with CORS headers
+├── _headers                # Cloudflare/Netlify COOP/COEP config
+├── 404.html                # SPA redirect for GitHub Pages
+└── README.md               # Documentation
 ```
+
+## ⚠️ Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| "WebGPU not supported" | Update Chrome/Edge to version 113+ |
+| Models fail to load | Check internet connection, clear cache, retry |
+| "Context window exceeded" | Automatic truncation handles this |
+| PDF extraction empty | PDF may be image-based (OCR not supported) |
+| Slow performance | Close other GPU-intensive tabs |
+| SharedArrayBuffer error | Use `python server.py` for proper COOP/COEP headers |
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request
 
 ## 📄 License
 
-MIT License - feel free to use this project for any purpose.
+MIT License - free for personal and commercial use.
 
 ## 🙏 Acknowledgments
 
-- [WebLLM](https://webllm.mlc.ai/) - MLC team for browser LLM inference
-- [Transformers.js](https://huggingface.co/docs/transformers.js/) - Hugging Face for web ML
-- [PDF.js](https://mozilla.github.io/pdf.js/) - Mozilla for PDF parsing
-- [Tailwind CSS](https://tailwindcss.com/) - For beautiful styling
+- [WebLLM](https://webllm.mlc.ai/) by MLC team - Browser LLM inference
+- [Transformers.js](https://huggingface.co/docs/transformers.js/) by Hugging Face - Web ML
+- [PDF.js](https://mozilla.github.io/pdf.js/) by Mozilla - PDF parsing
+- [Tailwind CSS](https://tailwindcss.com/) - Styling
 
 ---
 
-Made with ❤️ for privacy-conscious researchers
+**Made with ❤️ for privacy-conscious researchers**
+
+*All processing happens locally. Your research stays yours.*
