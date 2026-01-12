@@ -26,6 +26,7 @@ npm-debug.log*
 dist/
 build/
 index2.html
+dashboard2.html
 # Python
 __pycache__/
 *.py[cod]

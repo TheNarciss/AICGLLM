@@ -3,68 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📚 Local LLM Literature Reviewer</title>
+    <title>// Local LLM Literature Reviewer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        terminal: {
+                            black: '#0a0a0a',
+                            dark: '#111111',
+                            gray: '#1a1a1a',
+                            border: '#2a2a2a',
+                            text: '#d4c4a8',
+                            muted: '#8a8a7a',
+                            amber: '#c9a227',
+                            green: '#5a9a6f',
+                            red: '#a85c5c',
+                            cyan: '#5a8a9a',
+                            purple: '#8a6a9a',
+                            blue: '#5a7a9a',
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'monospace'],
+                        display: ['Space Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        * { font-family: 'JetBrains Mono', monospace; }
         
-        /* Animations */
-        @keyframes pulse-glow {
-            0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.5); }
-            50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.8); }
+        body {
+            background-color: #0a0a0a;
+            background-image: 
+                radial-gradient(ellipse at top, #111111 0%, transparent 50%),
+                radial-gradient(circle at 20% 80%, rgba(42, 42, 42, 0.1) 0%, transparent 50%);
         }
-        .loading-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+        /* Minimal scrollbar */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #2a2a2a; }
+        ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
         
-        @keyframes typing {
-            0%, 60%, 100% { opacity: 0.3; }
-            30% { opacity: 1; }
+        /* Subtle scan line effect */
+        .scanlines::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.03) 2px,
+                rgba(0, 0, 0, 0.03) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
         }
-        .typing-dot { animation: typing 1.4s infinite; }
-        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-        
-        /* Markdown styles */
-        .prose h1 { font-size: 1.5em; font-weight: bold; margin: 0.5em 0; }
-        .prose h2 { font-size: 1.3em; font-weight: bold; margin: 0.5em 0; }
-        .prose h3 { font-size: 1.1em; font-weight: bold; margin: 0.5em 0; }
-        .prose p { margin: 0.5em 0; }
-        .prose ul, .prose ol { margin: 0.5em 0; padding-left: 1.5em; }
-        .prose li { margin: 0.25em 0; list-style-type: disc; }
-        .prose code { background: #374151; padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.9em; }
-        .prose pre { background: #1e293b; padding: 1em; border-radius: 8px; overflow-x: auto; margin: 0.5em 0; }
-        .prose blockquote { border-left: 3px solid #3b82f6; padding-left: 1em; margin: 0.5em 0; opacity: 0.9; }
-        
-        /* Enhanced progress phases */
+
+        /* Card style */
+        .card {
+            background: #111111;
+            border: 1px solid #2a2a2a;
+            transition: border-color 0.2s ease;
+        }
+        .card:hover {
+            border-color: #3a3a3a;
+        }
+
+        /* Progress phases */
         .progress-phases {
             display: flex;
-            gap: 4px;
+            gap: 3px;
             margin-bottom: 8px;
         }
         .progress-phase {
             flex: 1;
-            height: 6px;
-            border-radius: 3px;
-            background: #334155;
+            height: 4px;
+            background: #2a2a2a;
             position: relative;
             overflow: hidden;
             transition: all 0.3s;
         }
         .progress-phase.active {
-            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-            animation: phase-pulse 1.5s ease-in-out infinite;
+            background: #c9a227;
         }
         .progress-phase.complete {
-            background: #22c55e;
-        }
-        @keyframes phase-pulse {
-            0%, 100% { opacity: 0.7; }
-            50% { opacity: 1; }
+            background: #5a9a6f;
         }
         
         /* Cache badge */
@@ -73,31 +107,250 @@
             align-items: center;
             gap: 4px;
             padding: 2px 8px;
-            border-radius: 9999px;
+            font-size: 0.65rem;
+            background: rgba(138, 106, 154, 0.15);
+            color: #8a6a9a;
+            border: 1px solid #3a3a3a;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Button styles */
+        .btn {
+            border: 1px solid #2a2a2a;
+            background: #111111;
+            transition: all 0.15s ease;
             font-size: 0.75rem;
-            background: rgba(168, 85, 247, 0.2);
-            color: #c084fc;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .btn:hover {
+            background: #1a1a1a;
+            border-color: #3a3a3a;
+        }
+        .btn-primary {
+            border-color: #5a7a9a;
+            color: #5a7a9a;
+        }
+        .btn-primary:hover {
+            background: rgba(90, 122, 154, 0.1);
+        }
+        .btn-danger {
+            border-color: #a85c5c;
+            color: #a85c5c;
+        }
+        .btn-danger:hover {
+            background: rgba(168, 92, 92, 0.1);
+        }
+
+        /* Indicator dots */
+        .indicator {
+            width: 6px;
+            height: 6px;
+            border-radius: 1px;
+        }
+        .indicator-active {
+            background: #5a9a6f;
+            box-shadow: 0 0 8px rgba(90, 154, 111, 0.5);
+        }
+        .indicator-warning {
+            background: #c9a227;
+        }
+        .indicator-error {
+            background: #a85c5c;
+        }
+
+        /* Subtle pulse animation */
+        @keyframes subtle-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .pulse-subtle {
+            animation: subtle-pulse 2s ease-in-out infinite;
+        }
+
+        /* Typing animation */
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; }
+            30% { opacity: 1; }
+        }
+        .typing-dot { animation: typing 1.4s infinite; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        /* Prose/Markdown styles */
+        .prose h1 { font-size: 1.1rem; font-weight: 600; margin: 0.5em 0; color: #d4c4a8; }
+        .prose h2 { font-size: 1rem; font-weight: 600; margin: 0.5em 0; color: #d4c4a8; }
+        .prose h3 { font-size: 0.9rem; font-weight: 600; margin: 0.5em 0; color: #d4c4a8; }
+        .prose p { margin: 0.5em 0; color: #8a8a7a; }
+        .prose ul, .prose ol { margin: 0.5em 0; padding-left: 1.5em; color: #8a8a7a; }
+        .prose li { margin: 0.25em 0; list-style-type: disc; }
+        .prose code { background: #1a1a1a; padding: 0.1em 0.3em; font-size: 0.85em; color: #5a9a6f; }
+        .prose pre { background: #0a0a0a; padding: 1em; overflow-x: auto; margin: 0.5em 0; border: 1px solid #2a2a2a; }
+        .prose blockquote { border-left: 2px solid #c9a227; padding-left: 1em; margin: 0.5em 0; opacity: 0.9; }
+        .prose strong { color: #c9a227; font-weight: 500; }
+
+        /* Form elements */
+        select, textarea, input[type="text"] {
+            background: #0a0a0a !important;
+            border: 1px solid #2a2a2a !important;
+            color: #d4c4a8 !important;
+            font-family: 'JetBrains Mono', monospace !important;
+            font-size: 0.8rem !important;
+        }
+        select:focus, textarea:focus, input:focus {
+            border-color: #3a3a3a !important;
+            outline: none !important;
+        }
+        
+        /* Range slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            background: #1a1a1a;
+            height: 4px;
+            border-radius: 0;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: #c9a227;
+            border-radius: 0;
+            cursor: pointer;
+        }
+
+        /* Toggle switch */
+        .toggle-btn {
+            width: 36px;
+            height: 18px;
+            background: #2a2a2a;
+            border-radius: 0;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .toggle-btn.active {
+            background: #5a9a6f;
+        }
+        .toggle-btn span {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 14px;
+            height: 14px;
+            background: #d4c4a8;
+            transition: transform 0.2s;
+        }
+        .toggle-btn.active span {
+            transform: translateX(18px);
+        }
+
+        /* Chat message styles */
+        .msg-assistant {
+            background: #111111;
+            border: 1px solid #2a2a2a;
+            border-left: 2px solid #c9a227;
+        }
+        .msg-user {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-left: 2px solid #5a7a9a;
+        }
+
+        /* Document item */
+        .doc-item {
+            background: #0a0a0a;
+            border: 1px solid #2a2a2a;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.75rem;
+        }
+        .doc-item:hover {
+            border-color: #3a3a3a;
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            background: #1a1a1a;
+            height: 4px;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: #c9a227;
+            transition: width 0.3s ease;
+        }
+
+        /* Voice indicator */
+        .voice-indicator {
+            background: #a85c5c;
+            border: 1px solid #a85c5c;
+        }
+
+        /* Drop zone */
+        .drop-zone {
+            border: 1px dashed #2a2a2a;
+            background: #0a0a0a;
+            transition: all 0.2s;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #c9a227;
+            background: rgba(201, 162, 39, 0.05);
+        }
+
+        /* Context panel */
+        .context-chunk {
+            background: #0a0a0a;
+            border: 1px solid #2a2a2a;
+            padding: 8px 12px;
+            font-size: 0.75rem;
+        }
+
+        /* Header underline */
+        .header-line {
+            position: relative;
+        }
+        .header-line::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 30px;
+            height: 1px;
+            background: #c9a227;
+        }
+
+        /* Stat box */
+        .stat-box {
+            background: #0a0a0a;
+            border: 1px solid #2a2a2a;
+            padding: 12px;
+            text-align: center;
+        }
+        .stat-box:hover {
+            border-color: #3a3a3a;
         }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen">
-    <header class="bg-slate-800 border-b border-slate-700 px-6 py-4">
+<body class="text-terminal-text min-h-screen scanlines">
+    <header class="border-b border-terminal-border px-6 py-4">
         <div class="max-w-7xl mx-auto flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="text-3xl">📚</div>
+            <div class="flex items-center gap-4">
+                <div class="text-terminal-amber text-lg font-display">//</div>
                 <div>
-                    <h1 class="text-xl font-bold text-white">Local LLM Literature Reviewer</h1>
-                    <p class="text-sm text-slate-400">100% Private • Browser-Based • No Cloud</p>
+                    <h1 class="text-base font-medium text-terminal-text tracking-wide">LOCAL_LLM_REVIEWER</h1>
+                    <p class="text-xs text-terminal-muted mt-0.5">100% Private • Browser-Based • No Cloud</p>
                 </div>
             </div>
             <div class="flex items-center gap-4">
-                <a href="./dashboard.html" class="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 text-purple-400 rounded-lg hover:bg-purple-600/30 transition-colors text-sm">
-                    <i class="fas fa-chart-line"></i>
-                    <span>Dashboard</span>
+                <a href="./dashboard.html" class="btn px-3 py-1.5 flex items-center gap-2 text-terminal-purple border-terminal-purple">
+                    <i class="fas fa-chart-line text-xs"></i>
+                    <span>dashboard</span>
                 </a>
-                <div id="webgpu-status" class="flex items-center gap-2 text-sm">
-                    <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
-                    <span class="text-slate-400">Checking WebGPU...</span>
+                <div id="webgpu-status" class="flex items-center gap-2 text-xs">
+                    <span class="indicator indicator-warning"></span>
+                    <span class="text-terminal-muted">checking webgpu...</span>
                 </div>
             </div>
         </div>
@@ -105,21 +358,22 @@
 
     <main class="max-w-7xl mx-auto p-6">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Sidebar -->
             <div class="lg:col-span-1 space-y-6">
-                <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                    <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
-                        <i class="fas fa-file-pdf text-red-400"></i>
+                <!-- Document Ingestion -->
+                <div class="card p-4">
+                    <h2 class="text-sm font-medium mb-3 flex items-center gap-2 header-line">
+                        <span class="text-terminal-red">PDF</span>
                         Document Ingestion
-                        <span id="cache-indicator" class="hidden cache-badge">
-                            <i class="fas fa-bolt"></i> Cached
+                        <span id="cache-indicator" class="hidden cache-badge ml-2">
+                            <i class="fas fa-bolt text-xs"></i> cached
                         </span>
                     </h2>
-                    <div id="drop-zone" 
-                         class="border-2 border-dashed border-slate-600 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 hover:bg-slate-700/50 transition-all">
-                        <i class="fas fa-cloud-upload-alt text-4xl text-slate-500 mb-3"></i>
-                        <p class="text-slate-400">Drag & drop PDF files here</p>
-                        <p class="text-sm text-slate-500 mt-1">or click to browse</p>
-                        <p class="text-xs text-slate-600 mt-2">⚡ Supports large documents (100+ pages)</p>
+                    <div id="drop-zone" class="drop-zone p-6 text-center cursor-pointer mt-4">
+                        <i class="fas fa-cloud-upload-alt text-2xl text-terminal-muted mb-3"></i>
+                        <p class="text-terminal-muted text-sm">Drag & drop PDF files here</p>
+                        <p class="text-xs text-terminal-muted mt-1 opacity-60">or click to browse</p>
+                        <p class="text-xs text-terminal-muted mt-2 opacity-40">Supports large documents (100+ pages)</p>
                         <input type="file" id="file-input" multiple accept=".pdf" class="hidden">
                     </div>
                     
@@ -129,112 +383,111 @@
                             <div class="progress-phase" data-phase="chunking" title="Semantic Chunking"></div>
                             <div class="progress-phase" data-phase="embedding" title="Embedding"></div>
                         </div>
-                        <div class="flex items-center justify-between text-xs text-slate-500 mb-2">
-                            <span>Extract</span>
-                            <span>Chunk</span>
-                            <span>Embed</span>
+                        <div class="flex items-center justify-between text-xs text-terminal-muted mb-2 opacity-60">
+                            <span>extract</span>
+                            <span>chunk</span>
+                            <span>embed</span>
                         </div>
-                        <div class="flex items-center gap-2 text-sm text-blue-400">
+                        <div class="flex items-center gap-2 text-xs text-terminal-amber">
                             <i class="fas fa-spinner fa-spin"></i>
                             <span id="processing-text">Processing...</span>
                         </div>
-                        <div class="w-full bg-slate-700 rounded-full h-2 mt-2">
-                            <div id="processing-bar" class="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        <div class="progress-bar mt-2">
+                            <div id="processing-bar" class="progress-bar-fill" style="width: 0%"></div>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                    <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
-                        <i class="fas fa-database text-purple-400"></i>
+                <!-- Memory Bank -->
+                <div class="card p-4">
+                    <h2 class="text-sm font-medium mb-3 flex items-center gap-2 header-line">
+                        <span class="text-terminal-purple">MEM</span>
                         Memory Bank
                     </h2>
                     <div class="grid grid-cols-2 gap-3 mb-4">
-                        <div class="bg-slate-700/50 rounded-lg p-3 text-center">
-                            <div id="doc-count" class="text-2xl font-bold text-blue-400">0</div>
-                            <div class="text-xs text-slate-400">Documents</div>
+                        <div class="stat-box">
+                            <div id="doc-count" class="text-xl font-light text-terminal-blue">0</div>
+                            <div class="text-xs text-terminal-muted uppercase tracking-wider mt-1">docs</div>
                         </div>
-                        <div class="bg-slate-700/50 rounded-lg p-3 text-center">
-                            <div id="chunk-count" class="text-2xl font-bold text-green-400">0</div>
-                            <div class="text-xs text-slate-400">Chunks</div>
+                        <div class="stat-box">
+                            <div id="chunk-count" class="text-xl font-light text-terminal-green">0</div>
+                            <div class="text-xs text-terminal-muted uppercase tracking-wider mt-1">chunks</div>
                         </div>
-                        <div class="bg-slate-700/50 rounded-lg p-3 text-center">
-                            <div id="vector-count" class="text-2xl font-bold text-purple-400">0</div>
-                            <div class="text-xs text-slate-400">Vectors</div>
+                        <div class="stat-box">
+                            <div id="vector-count" class="text-xl font-light text-terminal-purple">0</div>
+                            <div class="text-xs text-terminal-muted uppercase tracking-wider mt-1">vectors</div>
                         </div>
-                        <div class="bg-slate-700/50 rounded-lg p-3 text-center">
-                            <div id="storage-size" class="text-2xl font-bold text-orange-400">0</div>
-                            <div class="text-xs text-slate-400">KB Used</div>
+                        <div class="stat-box">
+                            <div id="storage-size" class="text-xl font-light text-terminal-amber">0</div>
+                            <div class="text-xs text-terminal-muted uppercase tracking-wider mt-1">KB</div>
                         </div>
                     </div>
                     
                     <div id="document-list" class="space-y-2 max-h-48 overflow-y-auto">
-                        <p class="text-sm text-slate-500 italic">No documents loaded yet</p>
+                        <p class="text-xs text-terminal-muted italic opacity-60">No documents loaded yet</p>
                     </div>
                     
                     <div class="flex gap-2 mt-4">
-                        <button id="clear-memory" class="flex-1 py-2 px-4 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors text-sm">
-                            <i class="fas fa-trash mr-2"></i>Clear Memory
+                        <button id="clear-memory" class="flex-1 btn btn-danger py-2 px-4 flex items-center justify-center gap-2">
+                            <i class="fas fa-trash text-xs"></i>clear memory
                         </button>
-                        <button id="clear-cache" class="py-2 px-4 bg-slate-600/20 text-slate-400 rounded-lg hover:bg-slate-600/30 transition-colors text-sm" title="Clear PDF cache">
-                            <i class="fas fa-database"></i>
+                        <button id="clear-cache" class="btn py-2 px-4 text-terminal-muted" title="Clear PDF cache">
+                            <i class="fas fa-database text-xs"></i>
                         </button>
                     </div>
                 </div>
 
-                <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                    <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
-                        <i class="fas fa-sliders-h text-cyan-400"></i>
+                <!-- System Controls -->
+                <div class="card p-4">
+                    <h2 class="text-sm font-medium mb-3 flex items-center gap-2 header-line">
+                        <span class="text-terminal-cyan">SYS</span>
                         System Controls
                     </h2>
                     
                     <div class="space-y-4">
-                        <div class="mb-4">
-                            <label class="text-sm text-slate-400 mb-1 block flex justify-between">
+                        <div>
+                            <label class="text-xs text-terminal-muted mb-1 block flex justify-between uppercase tracking-wider">
                                 <span>AI Model</span>
-                                <span id="vram-estimate" class="text-xs text-slate-500">~1.2GB VRAM</span>
+                                <span id="vram-estimate" class="text-terminal-amber">~1.2GB VRAM</span>
                             </label>
-                            <select id="model-selector" class="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+                            <select id="model-selector" class="w-full p-2 mt-1">
+                                <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC" data-vram="~2.4GB">◆ Llama 3.2 3B (Balanced)</option>
                                 <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC" data-vram="~1.2GB" selected>⚡ Llama 3.2 1B (Fastest)</option>
-                                <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC" data-vram="~2.4GB">🚀 Llama 3.2 3B (Balanced)</option>
-                                <option value="Llama-3.1-8B-Instruct-q4f32_1-MLC" data-vram="~6.0GB">🧠 Llama 3.1 8B (Smartest - High GPU)</option>
-                                <option value="gemma-2-2b-it-q4f16_1-MLC" data-vram="~1.8GB">💎 Gemma 2 2B (Google)</option>
-                                <option value="Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC" data-vram="~5.5GB">🧪 Hermes 2 Pro 8B (Uncensored)</option>
+                                <option value="Llama-3.1-8B-Instruct-q4f32_1-MLC" data-vram="~6.0GB">● Llama 3.1 8B (Smartest)</option>
+                                <option value="gemma-2-2b-it-q4f16_1-MLC" data-vram="~1.8GB">◇ Gemma 2 2B (Google)</option>
+                                <option value="Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC" data-vram="~5.5GB">○ Hermes 2 Pro 8B</option>
                             </select>
                         </div>
 
                         <div>
-                            <label class="flex items-center justify-between text-sm text-slate-400 mb-1">
+                            <label class="flex items-center justify-between text-xs text-terminal-muted mb-1 uppercase tracking-wider">
                                 <span>Temperature</span>
-                                <span id="temp-value" class="text-cyan-400">0.2</span>
+                                <span id="temp-value" class="text-terminal-amber">0.2</span>
                             </label>
-                            <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.2"
-                                   class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                            <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.2" class="w-full">
                         </div>
                         
                         <div>
-                            <label class="flex items-center justify-between text-sm text-slate-400 mb-1">
+                            <label class="flex items-center justify-between text-xs text-terminal-muted mb-1 uppercase tracking-wider">
                                 <span>Top K Chunks</span>
-                                <span id="topk-value" class="text-cyan-400">10</span>
+                                <span id="topk-value" class="text-terminal-amber">10</span>
                             </label>
-                            <input type="range" id="top-k" min="1" max="15" step="1" value="10"
-                                   class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                            <input type="range" id="top-k" min="1" max="15" step="1" value="10" class="w-full">
                         </div>
                         
                         <div class="flex items-center justify-between">
-                            <label class="text-sm text-slate-400 flex items-center gap-2">
+                            <label class="text-xs text-terminal-muted flex items-center gap-2 uppercase tracking-wider">
                                 <i class="fas fa-volume-up"></i>
                                 <span>Text-to-Speech</span>
                             </label>
-                            <button id="tts-toggle" class="relative w-12 h-6 bg-green-600 rounded-full transition-colors">
-                                <span class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform transform translate-x-6"></span>
+                            <button id="tts-toggle" class="toggle-btn active">
+                                <span></span>
                             </button>
                         </div>
                         
                         <div>
-                            <label class="text-sm text-slate-400 mb-1 block">System Prompt (Active)</label>
-                            <textarea id="system-prompt" rows="6"
-                                      class="w-full bg-slate-700 border border-slate-600 rounded-lg p-2 text-xs text-slate-300 resize-none focus:outline-none focus:border-blue-500" >ROLE: You are a strict extraction engine. You are NOT a creative writer.
+                            <label class="text-xs text-terminal-muted mb-1 block uppercase tracking-wider">System Prompt</label>
+                            <textarea id="system-prompt" rows="6" class="w-full p-2 mt-1 resize-none">ROLE: You are a strict extraction engine. You are NOT a creative writer.
 ROLE: You are a strict extraction engine. You are NOT a creative writer.
 TASK: Summarize the provided text below based strictly on the user's question.
 
@@ -253,82 +506,86 @@ FORMATTING:
                 </div>
             </div>
 
-            <div class="lg:col-span-2 flex flex-col bg-slate-800 rounded-xl border border-slate-700 overflow-hidden" style="height: calc(100vh - 180px);">
-                <div id="model-status" class="bg-slate-700/50 px-4 py-3 border-b border-slate-700">
+            <!-- Main Chat Area -->
+            <div class="lg:col-span-2 flex flex-col card overflow-hidden" style="height: calc(100vh - 180px);">
+                <!-- Model Status Bar -->
+                <div id="model-status" class="bg-terminal-gray px-4 py-3 border-b border-terminal-border">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
-                            <div id="model-indicator" class="w-3 h-3 rounded-full bg-yellow-500"></div>
-                            <span id="model-text" class="text-sm text-slate-300">Loading models...</span>
+                            <div id="model-indicator" class="indicator indicator-warning"></div>
+                            <span id="model-text" class="text-xs text-terminal-muted">Loading models...</span>
                         </div>
                         <div class="flex items-center gap-2">
-                            <button id="load-models-btn" class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors">
-                                <i class="fas fa-rocket mr-1"></i>Load Models
+                            <button id="load-models-btn" class="btn btn-primary px-3 py-1 flex items-center gap-2">
+                                <i class="fas fa-rocket text-xs"></i>load models
                             </button>
                         </div>
                     </div>
                     <div id="model-progress" class="hidden mt-2">
-                        <div class="flex justify-between text-xs text-slate-400 mb-1">
+                        <div class="flex justify-between text-xs text-terminal-muted mb-1">
                             <span id="model-progress-text">Initializing...</span>
-                            <span id="model-progress-percent">0%</span>
+                            <span id="model-progress-percent" class="text-terminal-amber">0%</span>
                         </div>
-                        <div class="w-full bg-slate-600 rounded-full h-1.5">
-                            <div id="model-progress-bar" class="bg-blue-500 h-1.5 rounded-full transition-all" style="width: 0%"></div>
+                        <div class="progress-bar">
+                            <div id="model-progress-bar" class="progress-bar-fill" style="width: 0%"></div>
                         </div>
                     </div>
                 </div>
 
+                <!-- Chat Messages -->
                 <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4">
                     <div class="flex gap-3">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-robot text-white text-sm"></i>
+                        <div class="w-7 h-7 bg-terminal-gray border border-terminal-border flex items-center justify-center flex-shrink-0">
+                            <span class="text-terminal-amber text-xs font-bold">//</span>
                         </div>
-                        <div class="bg-slate-700/50 rounded-lg rounded-tl-none p-4 max-w-2xl">
-                            <p class="text-slate-200">Welcome to the <strong>Local LLM Literature Reviewer</strong>! 📚</p>
-                            <p class="text-slate-300 mt-2">I run entirely in your browser - no data leaves your device. Here's how to get started:</p>
-                            <ol class="text-slate-300 mt-2 ml-4 list-decimal space-y-1">
-                                <li>Select a model (Llama 3.2 1B is recommended for starters)</li>
-                                <li>Click <strong>"Load Models"</strong> to initialize</li>
+                        <div class="msg-assistant p-4 max-w-2xl">
+                            <p class="text-terminal-text text-sm">Welcome to the <strong>Local LLM Literature Reviewer</strong></p>
+                            <p class="text-terminal-muted text-sm mt-2">I run entirely in your browser - no data leaves your device.</p>
+                            <ol class="text-terminal-muted text-sm mt-2 ml-4 list-decimal space-y-1">
+                                <li>Select a model (Llama 3.2 3B recommended)</li>
+                                <li>Click <strong class="text-terminal-amber">"load models"</strong></li>
                                 <li>Upload your research PDFs</li>
-                                <li>Ask me questions or request a review!</li>
+                                <li>Ask me questions or request a review</li>
                             </ol>
                         </div>
                     </div>
                 </div>
 
-                <div id="context-panel" class="hidden border-t border-slate-700 bg-slate-800/50 max-h-48 overflow-y-auto">
+                <!-- Context Panel -->
+                <div id="context-panel" class="hidden border-t border-terminal-border bg-terminal-dark max-h-48 overflow-y-auto">
                     <div class="p-3">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="text-sm font-medium text-slate-400">
-                                <i class="fas fa-quote-left mr-1"></i>Retrieved Context
+                            <span class="text-xs font-medium text-terminal-muted uppercase tracking-wider">
+                                <i class="fas fa-quote-left mr-1 text-terminal-amber"></i>Retrieved Context
                             </span>
-                            <button id="close-context" class="text-slate-500 hover:text-slate-300">
-                                <i class="fas fa-times"></i>
+                            <button id="close-context" class="text-terminal-muted hover:text-terminal-text transition-colors">
+                                <i class="fas fa-times text-xs"></i>
                             </button>
                         </div>
                         <div id="context-chunks" class="space-y-2"></div>
                     </div>
                 </div>
 
-                <div class="border-t border-slate-700 p-4">
+                <!-- Input Area -->
+                <div class="border-t border-terminal-border p-4">
                     <div class="flex gap-3">
                         <div class="flex-1 relative">
                             <textarea id="user-input" 
-                                      placeholder="Ask about your papers or request a literature review..."
+                                      placeholder="Ask about your papers..."
                                       rows="2"
-                                      class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 pr-12 text-slate-200 resize-none focus:outline-none focus:border-blue-500 placeholder-slate-500"
-                                      ></textarea>
-                            <button id="voice-btn" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-blue-400 transition-colors" title="Voice Input">
-                                <i class="fas fa-microphone text-lg"></i>
+                                      class="w-full px-4 py-3 pr-12 resize-none placeholder-terminal-muted"></textarea>
+                            <button id="voice-btn" class="absolute right-3 top-1/2 -translate-y-1/2 text-terminal-muted hover:text-terminal-amber transition-colors" title="Voice Input">
+                                <i class="fas fa-microphone text-sm"></i>
                             </button>
                         </div>
                         <button id="send-btn" 
-                                class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                class="btn btn-primary px-6 py-3 disabled:opacity-30 disabled:cursor-not-allowed"
                                 disabled>
-                            <i class="fas fa-paper-plane"></i>
+                            <i class="fas fa-paper-plane text-xs"></i>
                         </button>
                     </div>
-                    <div class="flex items-center justify-between mt-2 text-xs text-slate-500">
-                        <span>Press Enter to send, Shift+Enter for new line</span>
+                    <div class="flex items-center justify-between mt-2 text-xs text-terminal-muted opacity-60">
+                        <span>Enter to send, Shift+Enter for new line</span>
                         <span id="char-count">0 / 2000</span>
                     </div>
                 </div>
@@ -336,18 +593,46 @@ FORMATTING:
         </div>
     </main>
 
-    <div id="voice-indicator" class="hidden fixed bottom-24 right-8 bg-red-600 text-white px-4 py-2 rounded-full flex items-center gap-2 shadow-lg transition-all duration-300">
+    <!-- Voice Indicator -->
+    <div id="voice-indicator" class="hidden fixed bottom-24 right-8 voice-indicator text-terminal-text px-4 py-2 flex items-center gap-2 transition-all duration-300 text-sm">
         <i id="voice-icon" class="fas fa-microphone"></i>
         <span id="voice-status">Listening...</span>
-        <div id="audio-bars" class="flex gap-0.5 items-end h-6">
-            <div class="audio-bar w-1 bg-white rounded transition-all duration-75" style="height: 4px"></div>
-            <div class="audio-bar w-1 bg-white rounded transition-all duration-75" style="height: 4px"></div>
-            <div class="audio-bar w-1 bg-white rounded transition-all duration-75" style="height: 4px"></div>
-            <div class="audio-bar w-1 bg-white rounded transition-all duration-75" style="height: 4px"></div>
-            <div class="audio-bar w-1 bg-white rounded transition-all duration-75" style="height: 4px"></div>
+        <div id="audio-bars" class="flex gap-0.5 items-end h-5">
+            <div class="audio-bar w-1 bg-terminal-text transition-all duration-75" style="height: 4px"></div>
+            <div class="audio-bar w-1 bg-terminal-text transition-all duration-75" style="height: 4px"></div>
+            <div class="audio-bar w-1 bg-terminal-text transition-all duration-75" style="height: 4px"></div>
+            <div class="audio-bar w-1 bg-terminal-text transition-all duration-75" style="height: 4px"></div>
+            <div class="audio-bar w-1 bg-terminal-text transition-all duration-75" style="height: 4px"></div>
         </div>
         <div id="silence-indicator" class="hidden text-xs opacity-75 ml-1">
             <i class="fas fa-clock"></i> <span id="silence-countdown">2s</span>
+        </div>
+    </div>
+
+    <!-- Custom Modal -->
+    <div id="custom-modal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" id="modal-backdrop"></div>
+        <div class="absolute inset-0 flex items-center justify-center p-4">
+            <div class="bg-terminal-gray border border-terminal-border w-full max-w-md relative">
+                <!-- Header -->
+                <div class="px-4 py-3 border-b border-terminal-border flex items-center gap-3">
+                    <span id="modal-icon" class="text-terminal-amber"><i class="fas fa-exclamation-triangle"></i></span>
+                    <span id="modal-title" class="text-sm font-medium text-terminal-text uppercase tracking-wider">Confirm</span>
+                </div>
+                <!-- Body -->
+                <div class="px-4 py-4">
+                    <p id="modal-message" class="text-sm text-terminal-text leading-relaxed"></p>
+                </div>
+                <!-- Footer -->
+                <div class="px-4 py-3 border-t border-terminal-border flex justify-end gap-2">
+                    <button id="modal-cancel" class="px-4 py-2 text-xs uppercase tracking-wider border border-terminal-border text-terminal-muted hover:text-terminal-text hover:border-terminal-muted transition-colors">
+                        Cancel
+                    </button>
+                    <button id="modal-confirm" class="px-4 py-2 text-xs uppercase tracking-wider border border-terminal-amber text-terminal-amber hover:bg-terminal-amber/10 transition-colors">
+                        Confirm
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -383,9 +668,9 @@ FORMATTING:
             CACHE_MAX_AGE_MS: 7 * 24 * 60 * 60 * 1000, // 7 days
             
             // Models
-            EMBEDDING_MODEL: 'Xenova/all-MiniLM-L6-v2',
+            EMBEDDING_MODEL: 'Xenova/bge-small-en-v1.5',
             WHISPER_MODEL: 'Xenova/whisper-tiny',
-            LLM_MODEL: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',  // Default, mutable
+            LLM_MODEL: 'Llama-3.2-3B-Instruct-q4f16_1-MLC',  // Default, mutable
             LLM_MODEL_FALLBACK: 'Llama-3.2-1B-Instruct-q4f16_1-MLC', 
             
             // RAG - Hybrid Search
@@ -1405,6 +1690,57 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         // UTILITY FUNCTIONS
         // ============================================
         
+        // Custom styled confirm modal (replaces native confirm())
+        function showConfirmModal(message, options = {}) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('custom-modal');
+                const backdrop = document.getElementById('modal-backdrop');
+                const titleEl = document.getElementById('modal-title');
+                const iconEl = document.getElementById('modal-icon');
+                const messageEl = document.getElementById('modal-message');
+                const confirmBtn = document.getElementById('modal-confirm');
+                const cancelBtn = document.getElementById('modal-cancel');
+                
+                // Configure modal
+                titleEl.textContent = options.title || 'Confirm';
+                messageEl.textContent = message;
+                confirmBtn.textContent = options.confirmText || 'Confirm';
+                cancelBtn.textContent = options.cancelText || 'Cancel';
+                
+                // Icon and color based on type
+                const types = {
+                    warning: { icon: 'fa-exclamation-triangle', color: 'text-terminal-amber', border: 'border-terminal-amber' },
+                    danger: { icon: 'fa-trash', color: 'text-terminal-red', border: 'border-terminal-red' },
+                    info: { icon: 'fa-info-circle', color: 'text-terminal-blue', border: 'border-terminal-blue' }
+                };
+                const type = types[options.type] || types.warning;
+                iconEl.innerHTML = `<i class="fas ${type.icon}"></i>`;
+                iconEl.className = type.color;
+                confirmBtn.className = `px-4 py-2 text-xs uppercase tracking-wider border ${type.border} ${type.color} hover:bg-current/10 transition-colors`;
+                
+                // Show modal
+                modal.classList.remove('hidden');
+                
+                // Handle response
+                const cleanup = () => {
+                    modal.classList.add('hidden');
+                    confirmBtn.removeEventListener('click', onConfirm);
+                    cancelBtn.removeEventListener('click', onCancel);
+                    backdrop.removeEventListener('click', onCancel);
+                };
+                
+                const onConfirm = () => { cleanup(); resolve(true); };
+                const onCancel = () => { cleanup(); resolve(false); };
+                
+                confirmBtn.addEventListener('click', onConfirm);
+                cancelBtn.addEventListener('click', onCancel);
+                backdrop.addEventListener('click', onCancel);
+                
+                // Focus confirm button
+                confirmBtn.focus();
+            });
+        }
+        
         function cosineSimilarity(vecA, vecB) {
             const len = vecA.length;
             if (len !== vecB.length) return 0;
@@ -1794,25 +2130,18 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             
             const docList = document.getElementById('document-list');
             if (uniqueDocs.size === 0) {
-                docList.innerHTML = '<p class="text-sm text-slate-500 italic">No documents loaded yet</p>';
+                docList.innerHTML = '<p class="text-xs text-terminal-muted italic opacity-60">No documents loaded yet</p>';
             } else {
                 docList.innerHTML = Array.from(uniqueDocs).map(doc => {
                     const chunks = state.vectorStore.filter(v => v.source === doc);
                     const sections = [...new Set(chunks.map(c => c.section).filter(s => s && s !== 'unknown'))];
                     return `
-                        <div class="bg-slate-700/50 rounded-lg px-3 py-2">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-2 overflow-hidden">
-                                    <i class="fas fa-file-pdf text-red-400 flex-shrink-0"></i>
-                                    <span class="text-sm text-slate-300 truncate">${doc}</span>
-                                </div>
-                                <span class="text-xs text-slate-500 flex-shrink-0">${chunks.length} chunks</span>
+                        <div class="doc-item">
+                            <div class="flex items-center gap-2 overflow-hidden">
+                                <i class="fas fa-file-pdf text-terminal-red flex-shrink-0"></i>
+                                <span class="text-xs text-terminal-text truncate">${doc}</span>
                             </div>
-                            ${sections.length > 0 ? `
-                                <div class="mt-1 text-xs text-slate-500">
-                                    Sections: ${sections.slice(0, 4).join(', ')}${sections.length > 4 ? '...' : ''}
-                                </div>
-                            ` : ''}
+                            <span class="text-xs text-terminal-muted flex-shrink-0">${chunks.length}</span>
                         </div>
                     `;
                 }).join('');
@@ -1863,24 +2192,23 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             
             const isUser = role === 'user';
             const avatar = isUser 
-                ? '<div class="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-user text-white text-sm"></i></div>'
-                : '<div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0"><i class="fas fa-robot text-white text-sm"></i></div>';
+                ? '<div class="w-7 h-7 bg-terminal-gray border border-terminal-border flex items-center justify-center flex-shrink-0"><span class="text-terminal-blue text-xs font-bold">U</span></div>'
+                : '<div class="w-7 h-7 bg-terminal-gray border border-terminal-border flex items-center justify-center flex-shrink-0"><span class="text-terminal-amber text-xs font-bold">//</span></div>';
             
-            const bgColor = isUser ? 'bg-blue-600/20' : 'bg-slate-700/50';
-            const roundedClass = isUser ? 'rounded-tr-none' : 'rounded-tl-none';
+            const msgClass = isUser ? 'msg-user' : 'msg-assistant';
             
             let sourcesHtml = '';
             if (sources.length > 0 && !isUser) {
                 const uniqueSources = [...new Set(sources.map(s => s.source))];
                 sourcesHtml = `
-                    <div class="mt-3 pt-3 border-t border-slate-600">
-                        <div class="text-xs text-slate-400 mb-2">
-                            <i class="fas fa-quote-left mr-1"></i>Sources used:
+                    <div class="mt-3 pt-3 border-t border-terminal-border">
+                        <div class="text-xs text-terminal-muted mb-2 uppercase tracking-wider">
+                            <i class="fas fa-quote-left mr-1 text-terminal-amber"></i>Sources:
                         </div>
                         <div class="flex flex-wrap gap-2">
                             ${uniqueSources.map(s => `
-                                <span class="px-2 py-1 bg-slate-600/50 rounded text-xs text-slate-300">
-                                    <i class="fas fa-file-pdf text-red-400 mr-1"></i>${s}
+                                <span class="px-2 py-1 bg-terminal-black border border-terminal-border text-xs text-terminal-text">
+                                    <i class="fas fa-file-pdf text-terminal-red mr-1"></i>${s}
                                 </span>
                             `).join('')}
                         </div>
@@ -1890,7 +2218,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             
             messageDiv.innerHTML = `
                 ${avatar}
-                <div class="${bgColor} rounded-lg ${roundedClass} p-4 max-w-2xl prose text-slate-200">
+                <div class="${msgClass} p-4 max-w-2xl prose text-sm">
                     ${isUser ? content : markdownToHtml(content)}
                     ${sourcesHtml}
                 </div>
@@ -1906,14 +2234,14 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             typingDiv.id = 'typing-indicator';
             typingDiv.className = 'flex gap-3';
             typingDiv.innerHTML = `
-                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-robot text-white text-sm"></i>
+                <div class="w-7 h-7 bg-terminal-gray border border-terminal-border flex items-center justify-center flex-shrink-0">
+                    <span class="text-terminal-amber text-xs font-bold">//</span>
                 </div>
-                <div class="bg-slate-700/50 rounded-lg rounded-tl-none p-4">
+                <div class="msg-assistant p-4">
                     <div class="flex gap-1">
-                        <div class="w-2 h-2 bg-slate-400 rounded-full typing-dot"></div>
-                        <div class="w-2 h-2 bg-slate-400 rounded-full typing-dot"></div>
-                        <div class="w-2 h-2 bg-slate-400 rounded-full typing-dot"></div>
+                        <div class="w-2 h-2 bg-terminal-muted typing-dot"></div>
+                        <div class="w-2 h-2 bg-terminal-muted typing-dot"></div>
+                        <div class="w-2 h-2 bg-terminal-muted typing-dot"></div>
                     </div>
                 </div>
             `;
@@ -1940,16 +2268,16 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                                    chunk.rrfScore ? `RRF: ${chunk.rrfScore.toFixed(3)}` : '';
                 
                 return `
-                <div class="bg-slate-700/50 rounded p-2 text-xs">
+                <div class="context-chunk">
                     <div class="flex items-center justify-between mb-1">
-                        <span class="text-blue-400 font-medium">
+                        <span class="text-terminal-blue font-medium">
                             ${chunk.source} 
-                            <span class="text-cyan-400">[${pageInfo}]</span>
-                            <span class="text-slate-500">(${chunk.type}${chunk.section ? ': ' + chunk.section : ''})</span>
+                            <span class="text-terminal-cyan">[${pageInfo}]</span>
+                            <span class="text-terminal-muted">(${chunk.type}${chunk.section ? ': ' + chunk.section : ''})</span>
                         </span>
-                        <span class="text-slate-500">${similarity} match</span>
+                        <span class="text-terminal-muted">${similarity}</span>
                     </div>
-                    <p class="text-slate-400 line-clamp-2">${chunk.text.substring(0, 150)}...</p>
+                    <p class="text-terminal-muted line-clamp-2">${chunk.text.substring(0, 150)}...</p>
                 </div>
             `}).join('');
             
@@ -1964,21 +2292,21 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             const statusEl = document.getElementById('webgpu-status');
             
             if (!navigator.gpu) {
-                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-red-400">WebGPU not supported</span>`;
+                statusEl.innerHTML = `<span class="indicator indicator-error"></span><span class="text-terminal-red">WebGPU not supported</span>`;
                 return false;
             }
             
             try {
                 const adapter = await navigator.gpu.requestAdapter();
                 if (!adapter) {
-                    statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-red-400">No GPU adapter found</span>`;
+                    statusEl.innerHTML = `<span class="indicator indicator-error"></span><span class="text-terminal-red">No GPU adapter found</span>`;
                     return false;
                 }
                 
-                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-green-400">WebGPU Ready</span>`;
+                statusEl.innerHTML = `<span class="indicator indicator-active"></span><span class="text-terminal-green">WebGPU ready</span>`;
                 return true;
             } catch (e) {
-                statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-red-400">WebGPU error</span>`;
+                statusEl.innerHTML = `<span class="indicator indicator-error"></span><span class="text-terminal-red">WebGPU error</span>`;
                 return false;
             }
         }
@@ -1993,7 +2321,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             const loadBtn = document.getElementById('load-models-btn');
             
             loadBtn.disabled = true;
-            loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Loading...';
+            loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs mr-1"></i>loading...';
             modelProgress.classList.remove('hidden');
             
             try {
@@ -2069,9 +2397,9 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 }
                 
                 state.modelsLoaded = true;
-                modelIndicator.className = 'w-3 h-3 rounded-full bg-green-500';
+                modelIndicator.className = 'indicator indicator-active';
                 modelText.textContent = `Ready: ${selectedModel.split('-')[1]}B`;
-                modelText.className = 'text-sm text-green-400';
+                modelText.className = 'text-xs text-terminal-green';
                 modelProgress.classList.add('hidden');
                 loadBtn.classList.add('hidden');
                 
@@ -2082,12 +2410,12 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 
             } catch (error) {
                 console.error('Error loading models:', error);
-                modelIndicator.className = 'w-3 h-3 rounded-full bg-red-500';
+                modelIndicator.className = 'indicator indicator-error';
                 modelText.textContent = 'Error loading models';
-                modelText.className = 'text-sm text-red-400';
+                modelText.className = 'text-xs text-terminal-red';
                 progressText.textContent = error.message;
                 loadBtn.disabled = false;
-                loadBtn.innerHTML = '<i class="fas fa-redo mr-1"></i>Retry';
+                loadBtn.innerHTML = '<i class="fas fa-redo text-xs mr-1"></i>retry';
                 
                 addMessage('assistant', `❌ Error loading models: ${error.message}\n\nPlease make sure you're using a browser with WebGPU support (Chrome 113+ or Edge 113+).`);
             }
@@ -2399,8 +2727,10 @@ YOUR ANSWER (Based ONLY on Source Text):`;
                     temperature: CONFIG.TEMPERATURE, // Very strict
                     max_tokens: 512,
                     stream: true,
-                    repetition_penalty: 1.2, // Strong penalty for small models
-                    top_p: 0.5
+                    repetition_penalty: 1.1, // Strong penalty for small models
+                    top_p: 0.3
+                   
+
                 });
                 
                 hideTypingIndicator();
@@ -2586,11 +2916,21 @@ YOUR ANSWER (Based ONLY on Source Text):`;
 
                 if (!state.modelsLoaded) return; // Wait for "Load Models" click
 
-                if (confirm(`Switching to ${option.text} requires re-downloading/re-loading weights. Continue?`)) {
+                const confirmed = await showConfirmModal(
+                    `Switching to ${option.text} requires re-downloading and re-loading model weights. This may take a few minutes.`,
+                    {
+                        title: 'Switch Model',
+                        type: 'warning',
+                        confirmText: 'Switch',
+                        cancelText: 'Cancel'
+                    }
+                );
+                
+                if (confirmed) {
                     document.getElementById('load-models-btn').classList.remove('hidden');
                     document.getElementById('model-progress').classList.remove('hidden');
-                    document.getElementById('model-indicator').className = 'w-3 h-3 rounded-full bg-yellow-500';
-                    document.getElementById('model-text').textContent = 'Switching model...';
+                    document.getElementById('model-indicator').className = 'indicator indicator-warning';
+                    document.getElementById('model-text').textContent = 'switching...';
                     
                     document.getElementById('user-input').disabled = true;
                     document.getElementById('send-btn').disabled = true;
@@ -2627,15 +2967,35 @@ YOUR ANSWER (Based ONLY on Source Text):`;
             loadModels();
             
             // UI Helpers
-            document.getElementById('clear-memory').addEventListener('click', () => {
-                state.vectorStore = [];
-                state.documents = [];
-                updateMemoryDisplay();
-                addMessage('assistant', '🗑️ Memory cleared.');
+            document.getElementById('clear-memory').addEventListener('click', async () => {
+                const confirmed = await showConfirmModal(
+                    'This will remove all loaded documents and embeddings from memory. You will need to re-upload your PDFs.',
+                    {
+                        title: 'Clear Memory',
+                        type: 'danger',
+                        confirmText: 'Clear',
+                        cancelText: 'Cancel'
+                    }
+                );
+                if (confirmed) {
+                    state.vectorStore = [];
+                    state.documents = [];
+                    updateMemoryDisplay();
+                    addMessage('assistant', '🗑️ Memory cleared.');
+                }
             });
             
             document.getElementById('clear-cache').addEventListener('click', async () => {
-                if (confirm('Clear cache?')) {
+                const confirmed = await showConfirmModal(
+                    'This will delete all cached PDF documents. You will need to re-upload and re-process them.',
+                    {
+                        title: 'Clear Cache',
+                        type: 'danger',
+                        confirmText: 'Clear',
+                        cancelText: 'Cancel'
+                    }
+                );
+                if (confirmed) {
                     await state.pdfCache.clear();
                     addMessage('assistant', '🗑️ Cache cleared.');
                 }
@@ -2644,6 +3004,7 @@ YOUR ANSWER (Based ONLY on Source Text):`;
             document.getElementById('temperature').addEventListener('input', (e) => {
                 document.getElementById('temp-value').textContent = e.target.value;
                 CONFIG.TEMPERATURE = parseFloat(e.target.value);
+
             });
             
             document.getElementById('top-k').addEventListener('input', (e) => {

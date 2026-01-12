@@ -3,410 +3,579 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📊 Analytics Dashboard - Literature Reviewer</title>
+    <title>// Analytics Dashboard - Literature Reviewer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        terminal: {
+                            black: '#0a0a0a',
+                            dark: '#111111',
+                            gray: '#1a1a1a',
+                            border: '#2a2a2a',
+                            text: '#d4c4a8',
+                            muted: '#8a8a7a',
+                            amber: '#c9a227',
+                            green: '#5a9a6f',
+                            red: '#a85c5c',
+                            cyan: '#5a8a9a',
+                            purple: '#8a6a9a',
+                            blue: '#5a7a9a',
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'monospace'],
+                        display: ['Space Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        * { font-family: 'JetBrains Mono', monospace; }
         
+        body {
+            background-color: #0a0a0a;
+            background-image: 
+                radial-gradient(ellipse at top, #111111 0%, transparent 50%),
+                radial-gradient(circle at 20% 80%, rgba(42, 42, 42, 0.1) 0%, transparent 50%);
+        }
+
+        /* Minimal scrollbar */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #2a2a2a; }
+        ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+        
+        /* Subtle scan line effect */
+        .scanlines::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.03) 2px,
+                rgba(0, 0, 0, 0.03) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* Card style */
+        .card {
+            background: #111111;
+            border: 1px solid #2a2a2a;
+            transition: border-color 0.2s ease;
+        }
+        .card:hover {
+            border-color: #3a3a3a;
+        }
+
+        /* Stat cards */
         .stat-card {
-            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            overflow: hidden;
         }
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 3px;
+            height: 100%;
+            background: var(--accent-color, #c9a227);
+            opacity: 0.6;
         }
-        
-        @keyframes pulse-slow {
+
+        /* Progress bars - simple flat style */
+        .progress-bar {
+            background: #1a1a1a;
+            height: 6px;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        /* Table styling */
+        .data-table th {
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 0.65rem;
+            letter-spacing: 0.1em;
+            color: #8a8a7a;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        .data-table td {
+            border-bottom: 1px solid #1a1a1a;
+            font-size: 0.8rem;
+        }
+        .data-table tr:hover td {
+            background: #1a1a1a;
+        }
+
+        /* Button styles */
+        .btn {
+            border: 1px solid #2a2a2a;
+            background: #111111;
+            transition: all 0.15s ease;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .btn:hover {
+            background: #1a1a1a;
+            border-color: #3a3a3a;
+        }
+        .btn-primary {
+            border-color: #c9a227;
+            color: #c9a227;
+        }
+        .btn-primary:hover {
+            background: rgba(201, 162, 39, 0.1);
+        }
+        .btn-danger {
+            border-color: #a85c5c;
+            color: #a85c5c;
+        }
+        .btn-danger:hover {
+            background: rgba(168, 92, 92, 0.1);
+        }
+
+        /* Chart.js dark theme override */
+        canvas {
+            filter: contrast(0.95);
+        }
+
+        /* Indicator dots */
+        .indicator {
+            width: 6px;
+            height: 6px;
+            border-radius: 1px;
+        }
+        .indicator-active {
+            background: #5a9a6f;
+            box-shadow: 0 0 8px rgba(90, 154, 111, 0.5);
+        }
+        .indicator-warning {
+            background: #c9a227;
+        }
+        .indicator-error {
+            background: #a85c5c;
+        }
+
+        /* Subtle pulse animation */
+        @keyframes subtle-pulse {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
+            50% { opacity: 0.6; }
         }
-        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+        .pulse-subtle {
+            animation: subtle-pulse 2s ease-in-out infinite;
+        }
+
+        /* Header underline */
+        .header-line {
+            position: relative;
+        }
+        .header-line::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 40px;
+            height: 1px;
+            background: #c9a227;
+        }
+
+        /* Prose styles for analysis */
+        .prose-terminal h1, .prose-terminal h2, .prose-terminal h3 {
+            color: #d4c4a8;
+            font-weight: 600;
+            margin: 1em 0 0.5em;
+        }
+        .prose-terminal h1 { font-size: 1.1rem; }
+        .prose-terminal h2 { font-size: 1rem; }
+        .prose-terminal h3 { font-size: 0.9rem; }
+        .prose-terminal p { margin: 0.5em 0; color: #8a8a7a; }
+        .prose-terminal ul, .prose-terminal ol { margin: 0.5em 0; padding-left: 1.5em; color: #8a8a7a; }
+        .prose-terminal li { margin: 0.25em 0; }
+        .prose-terminal strong { color: #c9a227; font-weight: 500; }
+        .prose-terminal code { 
+            background: #1a1a1a; 
+            padding: 0.1em 0.3em; 
+            font-size: 0.85em;
+            color: #5a9a6f;
+        }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen">
-    <header class="bg-slate-800 border-b border-slate-700 px-6 py-4">
+<body class="text-terminal-text min-h-screen scanlines">
+    <!-- Header -->
+    <header class="border-b border-terminal-border px-6 py-4">
         <div class="max-w-7xl mx-auto flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="text-3xl">📊</div>
+            <div class="flex items-center gap-4">
+                <div class="text-terminal-amber text-lg font-display">//</div>
                 <div>
-                    <h1 class="text-xl font-bold text-white">Analytics Dashboard</h1>
-                    <p class="text-sm text-slate-400">Performance Metrics & User Feedback Analysis</p>
+                    <h1 class="text-base font-medium text-terminal-text tracking-wide">ANALYTICS_DASHBOARD</h1>
+                    <p class="text-xs text-terminal-muted mt-0.5">Performance Metrics & Feedback Analysis</p>
                 </div>
             </div>
-            <div class="flex items-center gap-4">
-                <div id="data-source" class="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 rounded-lg text-sm text-slate-400">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <span>Connecting...</span>
+            <div class="flex items-center gap-3">
+                <div id="data-source" class="flex items-center gap-2 px-3 py-1.5 card text-xs text-terminal-muted">
+                    <i class="fas fa-spinner fa-spin text-terminal-amber"></i>
+                    <span>connecting...</span>
                 </div>
-                <a href="./index.html" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600/30 transition-colors text-sm">
-                    <i class="fas fa-arrow-left"></i>
-                    <span>Back to App</span>
+                <a href="./index.html" class="btn btn-primary px-3 py-1.5 flex items-center gap-2">
+                    <i class="fas fa-arrow-left text-xs"></i>
+                    <span>back</span>
                 </a>
-                <button id="refresh-btn" class="flex items-center gap-2 px-3 py-1.5 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors text-sm">
-                    <i class="fas fa-sync-alt"></i>
-                    <span>Refresh</span>
+                <button id="refresh-btn" class="btn px-3 py-1.5 flex items-center gap-2 text-terminal-muted">
+                    <i class="fas fa-sync-alt text-xs"></i>
+                    <span>refresh</span>
                 </button>
-                <button id="clear-data-btn" class="flex items-center gap-2 px-3 py-1.5 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors text-sm">
-                    <i class="fas fa-trash"></i>
-                    <span>Clear Data</span>
+                <button id="clear-data-btn" class="btn btn-danger px-3 py-1.5 flex items-center gap-2">
+                    <i class="fas fa-trash text-xs"></i>
+                    <span>clear</span>
                 </button>
             </div>
         </div>
     </header>
 
     <main class="max-w-7xl mx-auto p-6">
+        <!-- ROW 1: Primary KPIs -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div class="stat-card bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm text-slate-400">Total Sessions</p>
-                        <p id="kpi-sessions" class="text-3xl font-bold text-blue-400">0</p>
-                    </div>
-                    <div class="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-users text-blue-400 text-xl"></i>
-                    </div>
-                </div>
+            <div class="stat-card card p-4" style="--accent-color: #5a7a9a;">
+                <p class="text-xs text-terminal-muted uppercase tracking-wider mb-1">Sessions</p>
+                <p id="kpi-sessions" class="text-2xl font-light text-terminal-blue">0</p>
             </div>
             
-            <div class="stat-card bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm text-slate-400">Total Queries</p>
-                        <p id="kpi-queries" class="text-3xl font-bold text-green-400">0</p>
-                    </div>
-                    <div class="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-comments text-green-400 text-xl"></i>
-                    </div>
-                </div>
+            <div class="stat-card card p-4" style="--accent-color: #5a9a6f;">
+                <p class="text-xs text-terminal-muted uppercase tracking-wider mb-1">Queries</p>
+                <p id="kpi-queries" class="text-2xl font-light text-terminal-green">0</p>
             </div>
             
-            <div class="stat-card bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm text-slate-400">Avg TTFT</p>
-                        <p id="kpi-ttft" class="text-3xl font-bold text-yellow-400">0<span class="text-lg">ms</span></p>
-                    </div>
-                    <div class="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-bolt text-yellow-400 text-xl"></i>
-                    </div>
-                </div>
+            <div class="stat-card card p-4" style="--accent-color: #c9a227;">
+                <p class="text-xs text-terminal-muted uppercase tracking-wider mb-1">Avg TTFT</p>
+                <p id="kpi-ttft" class="text-2xl font-light text-terminal-amber">0<span class="text-sm ml-1">ms</span></p>
             </div>
             
-            <div class="stat-card bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm text-slate-400">Satisfaction</p>
-                        <p id="kpi-satisfaction" class="text-3xl font-bold text-purple-400">0<span class="text-lg">%</span></p>
-                    </div>
-                    <div class="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-heart text-purple-400 text-xl"></i>
-                    </div>
-                </div>
+            <div class="stat-card card p-4" style="--accent-color: #8a6a9a;">
+                <p class="text-xs text-terminal-muted uppercase tracking-wider mb-1">Satisfaction</p>
+                <p id="kpi-satisfaction" class="text-2xl font-light text-terminal-purple">0<span class="text-sm ml-1">%</span></p>
             </div>
         </div>
+
         <!-- ROW 2: Advanced Metrics KPIs -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <!-- Context Utilization -->
-            <div class="stat-card bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm text-slate-400">Context Use</p>
-                        <p id="kpi-context-util" class="text-3xl font-bold text-cyan-400">0<span class="text-lg">%</span></p>
+            <div class="stat-card card p-4" style="--accent-color: #5a8a9a;">
+                <p class="text-xs text-terminal-muted uppercase tracking-wider mb-1">Context Use</p>
+                <p id="kpi-context-util" class="text-2xl font-light text-terminal-cyan">0<span class="text-sm ml-1">%</span></p>
+            </div>
+            
+            <div class="stat-card card p-4" style="--accent-color: #5a9a6f;">
+                <p class="text-xs text-terminal-muted uppercase tracking-wider mb-1">Grounding</p>
+                <p id="kpi-grounding" class="text-2xl font-light text-terminal-green">0<span class="text-sm ml-1">%</span></p>
+            </div>
+            
+            <div class="stat-card card p-4" style="--accent-color: #a85c5c;">
+                <p class="text-xs text-terminal-muted uppercase tracking-wider mb-1">Hallucination</p>
+                <p id="kpi-hallucination" class="text-2xl font-light text-terminal-red">0<span class="text-sm ml-1">%</span></p>
+            </div>
+            
+            <div class="stat-card card p-4" style="--accent-color: #8a6a9a;">
+                <p class="text-xs text-terminal-muted uppercase tracking-wider mb-1">Completeness</p>
+                <p id="kpi-completeness" class="text-2xl font-light text-terminal-purple">0<span class="text-sm ml-1">%</span></p>
+            </div>
+        </div>
+
+        <!-- Charts Row 1 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="card p-4">
+                <h3 class="text-sm font-medium mb-4 text-terminal-text header-line">
+                    Retrieval Quality
+                </h3>
+                <div class="h-56">
+                    <canvas id="retrievalChart"></canvas>
+                </div>
+                <div class="mt-4 grid grid-cols-2 gap-3 text-xs">
+                    <div class="bg-terminal-gray p-3 border border-terminal-border">
+                        <p class="text-terminal-muted uppercase tracking-wider">Top-1 Sim</p>
+                        <p id="stat-top1" class="text-lg font-light text-terminal-blue mt-1">0.000</p>
                     </div>
-                    <div class="w-12 h-12 bg-cyan-600/20 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-layer-group text-cyan-400 text-xl"></i>
+                    <div class="bg-terminal-gray p-3 border border-terminal-border">
+                        <p class="text-terminal-muted uppercase tracking-wider">Top-K Sim</p>
+                        <p id="stat-topk" class="text-lg font-light text-terminal-cyan mt-1">0.000</p>
                     </div>
                 </div>
             </div>
-            
-            <!-- Answer Grounding -->
-            <div class="stat-card bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm text-slate-400">Grounding</p>
-                        <p id="kpi-grounding" class="text-3xl font-bold text-emerald-400">0<span class="text-lg">%</span></p>
-                    </div>
-                    <div class="w-12 h-12 bg-emerald-600/20 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-anchor text-emerald-400 text-xl"></i>
-                    </div>
+
+            <div class="card p-4">
+                <h3 class="text-sm font-medium mb-4 text-terminal-text header-line">
+                    Latency Distribution
+                </h3>
+                <div class="h-56">
+                    <canvas id="latencyChart"></canvas>
                 </div>
-            </div>
-            
-            <!-- Hallucination Score (lower is better) -->
-            <div class="stat-card bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm text-slate-400">Hallucination</p>
-                        <p id="kpi-hallucination" class="text-3xl font-bold text-orange-400">0<span class="text-lg">%</span></p>
+                <div class="mt-4 grid grid-cols-3 gap-3 text-xs">
+                    <div class="bg-terminal-gray p-3 border border-terminal-border">
+                        <p class="text-terminal-muted uppercase tracking-wider">P50</p>
+                        <p id="stat-p50" class="text-lg font-light text-terminal-green mt-1">0ms</p>
                     </div>
-                    <div class="w-12 h-12 bg-orange-600/20 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-exclamation-triangle text-orange-400 text-xl"></i>
+                    <div class="bg-terminal-gray p-3 border border-terminal-border">
+                        <p class="text-terminal-muted uppercase tracking-wider">P95</p>
+                        <p id="stat-p95" class="text-lg font-light text-terminal-amber mt-1">0ms</p>
                     </div>
-                </div>
-            </div>
-            
-            <!-- Completeness -->
-            <div class="stat-card bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm text-slate-400">Completeness</p>
-                        <p id="kpi-completeness" class="text-3xl font-bold text-pink-400">0<span class="text-lg">%</span></p>
-                    </div>
-                    <div class="w-12 h-12 bg-pink-600/20 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-check-circle text-pink-400 text-xl"></i>
+                    <div class="bg-terminal-gray p-3 border border-terminal-border">
+                        <p class="text-terminal-muted uppercase tracking-wider">TPS</p>
+                        <p id="stat-tps" class="text-lg font-light text-terminal-purple mt-1">0</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <i class="fas fa-search text-blue-400"></i>
-                    Retrieval Quality
+        <!-- Charts Row 2 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="card p-4">
+                <h3 class="text-sm font-medium mb-4 text-terminal-text header-line">
+                    Generation Quality
                 </h3>
-                <div class="h-64">
-                    <canvas id="retrievalChart"></canvas>
+                <div class="h-56">
+                    <canvas id="qualityChart"></canvas>
                 </div>
-                <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
-                    <div class="bg-slate-700/50 rounded-lg p-3">
-                        <p class="text-slate-400">Avg Top-1 Similarity</p>
-                        <p id="stat-top1" class="text-xl font-bold text-blue-400">0.000</p>
+                <div class="mt-4 grid grid-cols-3 gap-3 text-xs">
+                    <div class="bg-terminal-gray p-3 border border-terminal-border">
+                        <p class="text-terminal-muted uppercase tracking-wider">Distinct-1</p>
+                        <p id="stat-distinct1" class="text-lg font-light text-terminal-purple mt-1">0.000</p>
                     </div>
-                    <div class="bg-slate-700/50 rounded-lg p-3">
-                        <p class="text-slate-400">Avg Top-K Similarity</p>
-                        <p id="stat-topk" class="text-xl font-bold text-cyan-400">0.000</p>
+                    <div class="bg-terminal-gray p-3 border border-terminal-border">
+                        <p class="text-terminal-muted uppercase tracking-wider">Distinct-2</p>
+                        <p id="stat-distinct2" class="text-lg font-light text-terminal-cyan mt-1">0.000</p>
+                    </div>
+                    <div class="bg-terminal-gray p-3 border border-terminal-border">
+                        <p class="text-terminal-muted uppercase tracking-wider">Avg Len</p>
+                        <p id="stat-avg-length" class="text-lg font-light text-terminal-amber mt-1">0</p>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <i class="fas fa-tachometer-alt text-yellow-400"></i>
-                    Latency Distribution
+            <div class="card p-4">
+                <h3 class="text-sm font-medium mb-4 text-terminal-text header-line">
+                    Query Types
                 </h3>
-                <div class="h-64">
-                    <canvas id="latencyChart"></canvas>
+                <div class="h-56">
+                    <canvas id="queryTypeChart"></canvas>
                 </div>
-                <div class="mt-4 grid grid-cols-3 gap-4 text-sm">
-                    <div class="bg-slate-700/50 rounded-lg p-3">
-                        <p class="text-slate-400">P50 TTFT</p>
-                        <p id="stat-p50" class="text-xl font-bold text-green-400">0ms</p>
-                    </div>
-                    <div class="bg-slate-700/50 rounded-lg p-3">
-                        <p class="text-slate-400">P95 TTFT</p>
-                        <p id="stat-p95" class="text-xl font-bold text-yellow-400">0ms</p>
-                    </div>
-                    <div class="bg-slate-700/50 rounded-lg p-3">
-                        <p class="text-slate-400">Avg TPS</p>
-                        <p id="stat-tps" class="text-xl font-bold text-purple-400">0</p>
-                    </div>
+                <div class="mt-4 text-xs text-center text-terminal-muted">
+                    <p>Distribution of user query categories</p>
                 </div>
             </div>
         </div>
 
         <!-- Feedback & Self-Eval Row -->
-        
-        <!-- Advanced Metrics Charts -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <!-- Diversity & Quality -->
-            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <i class="fas fa-random text-purple-400"></i>
-                    Generation Quality
-                </h3>
-                <div class="h-64">
-                    <canvas id="qualityChart"></canvas>
-                </div>
-                <div class="mt-4 grid grid-cols-3 gap-4 text-sm">
-                    <div class="bg-slate-700/50 rounded-lg p-3">
-                        <p class="text-slate-400">Distinct-1</p>
-                        <p id="stat-distinct1" class="text-xl font-bold text-purple-400">0.000</p>
-                    </div>
-                    <div class="bg-slate-700/50 rounded-lg p-3">
-                        <p class="text-slate-400">Distinct-2</p>
-                        <p id="stat-distinct2" class="text-xl font-bold text-pink-400">0.000</p>
-                    </div>
-                    <div class="bg-slate-700/50 rounded-lg p-3">
-                        <p class="text-slate-400">Avg Length</p>
-                        <p id="stat-avg-length" class="text-xl font-bold text-cyan-400">0</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Query Type Distribution -->
-            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <i class="fas fa-chart-pie text-indigo-400"></i>
-                    Query Types
-                </h3>
-                <div class="h-64">
-                    <canvas id="queryTypeChart"></canvas>
-                </div>
-                <div class="mt-4 text-sm text-center text-slate-400">
-                    <p>Distribution of user query categories</p>
-                </div>
-            </div>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <i class="fas fa-thumbs-up text-green-400"></i>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="card p-4">
+                <h3 class="text-sm font-medium mb-4 text-terminal-text header-line">
                     User Feedback
                 </h3>
                 <div class="flex items-center gap-6">
-                    <div class="h-48 w-48">
+                    <div class="h-40 w-40">
                         <canvas id="feedbackChart"></canvas>
                     </div>
-                    <div class="flex-1 space-y-3">
-                        <div class="flex items-center justify-between p-3 bg-green-600/10 rounded-lg">
-                            <div class="flex items-center gap-2">
-                                <i class="fas fa-thumbs-up text-green-400"></i>
-                                <span class="text-slate-300">Helpful</span>
+                    <div class="flex-1 space-y-2">
+                        <div class="flex items-center justify-between p-3 bg-terminal-gray border border-terminal-border">
+                            <div class="flex items-center gap-2 text-xs">
+                                <i class="fas fa-thumbs-up text-terminal-green"></i>
+                                <span class="text-terminal-muted">Helpful</span>
                             </div>
-                            <span id="feedback-up" class="text-xl font-bold text-green-400">0</span>
+                            <span id="feedback-up" class="text-lg font-light text-terminal-green">0</span>
                         </div>
-                        <div class="flex items-center justify-between p-3 bg-red-600/10 rounded-lg">
-                            <div class="flex items-center gap-2">
-                                <i class="fas fa-thumbs-down text-red-400"></i>
-                                <span class="text-slate-300">Not Helpful</span>
+                        <div class="flex items-center justify-between p-3 bg-terminal-gray border border-terminal-border">
+                            <div class="flex items-center gap-2 text-xs">
+                                <i class="fas fa-thumbs-down text-terminal-red"></i>
+                                <span class="text-terminal-muted">Not Helpful</span>
                             </div>
-                            <span id="feedback-down" class="text-xl font-bold text-red-400">0</span>
+                            <span id="feedback-down" class="text-lg font-light text-terminal-red">0</span>
                         </div>
-                        <div class="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
-                            <div class="flex items-center gap-2">
-                                <i class="fas fa-question text-slate-400"></i>
-                                <span class="text-slate-300">No Feedback</span>
+                        <div class="flex items-center justify-between p-3 bg-terminal-gray border border-terminal-border">
+                            <div class="flex items-center gap-2 text-xs">
+                                <i class="fas fa-minus text-terminal-muted"></i>
+                                <span class="text-terminal-muted">No Feedback</span>
                             </div>
-                            <span id="feedback-none" class="text-xl font-bold text-slate-400">0</span>
+                            <span id="feedback-none" class="text-lg font-light text-terminal-muted">0</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <i class="fas fa-robot text-purple-400"></i>
+            <div class="card p-4">
+                <h3 class="text-sm font-medium mb-4 text-terminal-text header-line">
                     LLM Self-Evaluation
                 </h3>
                 <div class="space-y-4">
                     <div>
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-sm text-slate-400">Faithfulness</span>
-                            <span id="eval-faithfulness" class="text-sm font-bold text-blue-400">0.0 / 5</span>
+                        <div class="flex items-center justify-between mb-2 text-xs">
+                            <span class="text-terminal-muted uppercase tracking-wider">Faithfulness</span>
+                            <span id="eval-faithfulness" class="text-terminal-blue">0.0 / 5</span>
                         </div>
-                        <div class="h-3 bg-slate-700 rounded-full overflow-hidden">
-                            <div id="bar-faithfulness" class="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-500" style="width: 0%"></div>
+                        <div class="progress-bar">
+                            <div id="bar-faithfulness" class="progress-bar-fill bg-terminal-blue" style="width: 0%"></div>
                         </div>
-                        <p class="text-xs text-slate-500 mt-1">Does the response only use information from the context?</p>
+                        <p class="text-xs text-terminal-muted mt-1 opacity-60">Only uses information from context?</p>
                     </div>
                     
                     <div>
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-sm text-slate-400">Relevance</span>
-                            <span id="eval-relevance" class="text-sm font-bold text-green-400">0.0 / 5</span>
+                        <div class="flex items-center justify-between mb-2 text-xs">
+                            <span class="text-terminal-muted uppercase tracking-wider">Relevance</span>
+                            <span id="eval-relevance" class="text-terminal-green">0.0 / 5</span>
                         </div>
-                        <div class="h-3 bg-slate-700 rounded-full overflow-hidden">
-                            <div id="bar-relevance" class="h-full bg-gradient-to-r from-green-600 to-green-400 transition-all duration-500" style="width: 0%"></div>
+                        <div class="progress-bar">
+                            <div id="bar-relevance" class="progress-bar-fill bg-terminal-green" style="width: 0%"></div>
                         </div>
-                        <p class="text-xs text-slate-500 mt-1">Does the response answer the question?</p>
+                        <p class="text-xs text-terminal-muted mt-1 opacity-60">Answers the question?</p>
                     </div>
                     
                     <div>
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-sm text-slate-400">Coherence</span>
-                            <span id="eval-coherence" class="text-sm font-bold text-purple-400">0.0 / 5</span>
+                        <div class="flex items-center justify-between mb-2 text-xs">
+                            <span class="text-terminal-muted uppercase tracking-wider">Coherence</span>
+                            <span id="eval-coherence" class="text-terminal-purple">0.0 / 5</span>
                         </div>
-                        <div class="h-3 bg-slate-700 rounded-full overflow-hidden">
-                            <div id="bar-coherence" class="h-full bg-gradient-to-r from-purple-600 to-purple-400 transition-all duration-500" style="width: 0%"></div>
+                        <div class="progress-bar">
+                            <div id="bar-coherence" class="progress-bar-fill bg-terminal-purple" style="width: 0%"></div>
                         </div>
-                        <p class="text-xs text-slate-500 mt-1">Is the response well-structured and logical?</p>
+                        <p class="text-xs text-terminal-muted mt-1 opacity-60">Well-structured and logical?</p>
                     </div>
                     
-                    <div class="mt-4 p-3 bg-slate-700/30 rounded-lg">
-                        <p class="text-xs text-slate-400">
-                            <i class="fas fa-info-circle mr-1"></i>
-                            Self-evaluation runs automatically after each response using the same LLM.
+                    <div class="mt-4 p-3 bg-terminal-gray border border-terminal-border">
+                        <p class="text-xs text-terminal-muted">
+                            <span class="text-terminal-amber">*</span> Self-evaluation runs automatically after each response.
                         </p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 mb-6">
+        <!-- AI Analysis Section -->
+        <div class="card p-5 mb-6">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold flex items-center gap-2">
-                    <i class="fas fa-brain text-pink-400"></i>
+                <h3 class="text-sm font-medium text-terminal-text header-line">
                     AI Analysis & Recommendations
                 </h3>
-                <div class="flex items-center gap-2">
-                    <div id="llm-status" class="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 rounded-lg text-sm">
-                        <span id="llm-indicator" class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
-                        <span id="llm-text" class="text-slate-400">Auto-loading LLM...</span>
+                <div class="flex items-center gap-3">
+                    <div id="llm-status" class="flex items-center gap-2 px-3 py-1.5 bg-terminal-gray border border-terminal-border text-xs">
+                        <span id="llm-indicator" class="indicator indicator-warning pulse-subtle"></span>
+                        <span id="llm-text" class="text-terminal-muted">auto-loading...</span>
                     </div>
-                    <button id="load-llm-btn" class="hidden flex items-center gap-2 px-4 py-2 bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600/30 transition-colors text-sm">
-                        <i class="fas fa-download"></i>
-                        <span>Load LLM</span>
+                    <button id="load-llm-btn" class="hidden btn btn-primary px-3 py-1.5 flex items-center gap-2">
+                        <i class="fas fa-download text-xs"></i>
+                        <span>load llm</span>
                     </button>
-                    <button id="generate-analysis-btn" disabled class="flex items-center gap-2 px-4 py-2 bg-pink-600/20 text-pink-400 rounded-lg hover:bg-pink-600/30 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                        <i class="fas fa-magic"></i>
-                        <span>Generate Analysis</span>
+                    <button id="generate-analysis-btn" disabled class="btn px-3 py-1.5 flex items-center gap-2 text-terminal-amber border-terminal-amber disabled:opacity-30 disabled:cursor-not-allowed">
+                        <i class="fas fa-magic text-xs"></i>
+                        <span>generate</span>
                     </button>
                 </div>
             </div>
             
             <div id="llm-progress" class="hidden mb-4">
-                <div class="flex items-center justify-between text-sm mb-1">
-                    <span id="llm-progress-text" class="text-slate-400">Loading...</span>
-                    <span id="llm-progress-percent" class="text-blue-400">0%</span>
+                <div class="flex items-center justify-between text-xs mb-2">
+                    <span id="llm-progress-text" class="text-terminal-muted">Loading...</span>
+                    <span id="llm-progress-percent" class="text-terminal-amber">0%</span>
                 </div>
-                <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
-                    <div id="llm-progress-bar" class="h-full bg-gradient-to-r from-blue-600 to-pink-500 transition-all duration-300" style="width: 0%"></div>
+                <div class="progress-bar">
+                    <div id="llm-progress-bar" class="progress-bar-fill bg-terminal-amber" style="width: 0%"></div>
                 </div>
             </div>
             
-            <div id="analysis-content" class="prose prose-invert max-w-none">
-                <div class="text-slate-400 text-center py-8">
-                    <i class="fas fa-spinner fa-spin text-4xl mb-3 text-pink-400"></i>
-                    <p>LLM is loading in background...</p>
-                    <p class="text-sm text-slate-500">The "Generate Analysis" button will be enabled once ready.</p>
+            <div id="analysis-content" class="prose-terminal">
+                <div class="text-terminal-muted text-center py-8">
+                    <i class="fas fa-spinner fa-spin text-2xl mb-3 text-terminal-amber"></i>
+                    <p class="text-sm">LLM loading in background...</p>
+                    <p class="text-xs opacity-60 mt-1">"Generate" will be enabled once ready.</p>
                 </div>
             </div>
         </div>
 
-        <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
-            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                <i class="fas fa-history text-cyan-400"></i>
+        <!-- Recent Queries Table -->
+        <div class="card p-4">
+            <h3 class="text-sm font-medium mb-4 text-terminal-text header-line">
                 Recent Queries
             </h3>
             <div class="overflow-x-auto">
-                <table class="w-full text-sm">
+                <table class="w-full data-table">
                     <thead>
-                        <tr class="text-left text-slate-400 border-b border-slate-700">
-                            <th class="pb-3 pr-4">Time</th>
-                            <th class="pb-3 pr-4">Query</th>
-                            <th class="pb-3 pr-4">TTFT</th>
-                            <th class="pb-3 pr-4">TPS</th>
-                            <th class="pb-3 pr-4">Top Sim</th>
-                            <th class="pb-3 pr-4">Feedback</th>
-                            <th class="pb-3">Self-Eval</th>
+                        <tr>
+                            <th class="text-left py-3 pr-4">Time</th>
+                            <th class="text-left py-3 pr-4">Query</th>
+                            <th class="text-left py-3 pr-4">TTFT</th>
+                            <th class="text-left py-3 pr-4">TPS</th>
+                            <th class="text-left py-3 pr-4">Top Sim</th>
+                            <th class="text-left py-3 pr-4">Feedback</th>
+                            <th class="text-left py-3">Self-Eval</th>
                         </tr>
                     </thead>
-                    <tbody id="queries-table" class="text-slate-300">
-                        </tbody>
+                    <tbody id="queries-table" class="text-terminal-text">
+                    </tbody>
                 </table>
             </div>
-            <div id="no-queries" class="text-center py-8 text-slate-500">
-                <i class="fas fa-inbox text-3xl mb-2"></i>
-                <p>No queries recorded yet. Start using the app to see data here.</p>
+            <div id="no-queries" class="text-center py-8 text-terminal-muted">
+                <i class="fas fa-inbox text-2xl mb-2 opacity-40"></i>
+                <p class="text-sm">No queries recorded yet.</p>
             </div>
         </div>
     </main>
+
+    <!-- Custom Modals -->
+    <div id="custom-modal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" id="modal-backdrop"></div>
+        <div class="absolute inset-0 flex items-center justify-center p-4">
+            <div class="bg-terminal-gray border border-terminal-border w-full max-w-md relative">
+                <div class="px-4 py-3 border-b border-terminal-border flex items-center gap-3">
+                    <span id="modal-icon" class="text-terminal-amber"><i class="fas fa-exclamation-triangle"></i></span>
+                    <span id="modal-title" class="text-sm font-medium text-terminal-text uppercase tracking-wider">Confirm</span>
+                </div>
+                <div class="px-4 py-4">
+                    <p id="modal-message" class="text-sm text-terminal-text leading-relaxed"></p>
+                    <input type="password" id="modal-input" class="hidden w-full mt-3 px-3 py-2 bg-terminal-black border border-terminal-border text-terminal-text text-sm focus:border-terminal-amber focus:outline-none" placeholder="Enter password...">
+                </div>
+                <div class="px-4 py-3 border-t border-terminal-border flex justify-end gap-2">
+                    <button id="modal-cancel" class="px-4 py-2 text-xs uppercase tracking-wider border border-terminal-border text-terminal-muted hover:text-terminal-text hover:border-terminal-muted transition-colors">
+                        Cancel
+                    </button>
+                    <button id="modal-confirm" class="px-4 py-2 text-xs uppercase tracking-wider border border-terminal-amber text-terminal-amber hover:bg-terminal-amber/10 transition-colors">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Modal -->
+    <div id="alert-modal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" id="alert-backdrop"></div>
+        <div class="absolute inset-0 flex items-center justify-center p-4">
+            <div class="bg-terminal-gray border border-terminal-border w-full max-w-sm relative">
+                <div class="px-4 py-3 border-b border-terminal-border flex items-center gap-3">
+                    <span id="alert-icon" class="text-terminal-blue"><i class="fas fa-info-circle"></i></span>
+                    <span id="alert-title" class="text-sm font-medium text-terminal-text uppercase tracking-wider">Notice</span>
+                </div>
+                <div class="px-4 py-4">
+                    <p id="alert-message" class="text-sm text-terminal-text leading-relaxed"></p>
+                </div>
+                <div class="px-4 py-3 border-t border-terminal-border flex justify-end">
+                    <button id="alert-ok" class="px-4 py-2 text-xs uppercase tracking-wider border border-terminal-blue text-terminal-blue hover:bg-terminal-blue/10 transition-colors">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script type="module">
         // ============================================
@@ -444,7 +613,7 @@
         // ============================================
         // SECURITY CONFIGURATION
         // ============================================
-        const AUTH_KEY_HASH = "e382d5089311689255097945d82c40c342f5617c06206d997233894562086e5c"; // mdpclementgardair
+        const AUTH_KEY_HASH = "e382d5089311689255097945d82c40c342f5617c06206d997233894562086e5c";
 
         async function verifyPassword(input) {
             if (!input) return false;
@@ -453,6 +622,146 @@
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             return hashHex === AUTH_KEY_HASH;
+        }
+
+        // ============================================
+        // CUSTOM MODALS
+        // ============================================
+        
+        // Confirm modal (replaces native confirm())
+        function showConfirmModal(message, options = {}) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('custom-modal');
+                const backdrop = document.getElementById('modal-backdrop');
+                const titleEl = document.getElementById('modal-title');
+                const iconEl = document.getElementById('modal-icon');
+                const messageEl = document.getElementById('modal-message');
+                const inputEl = document.getElementById('modal-input');
+                const confirmBtn = document.getElementById('modal-confirm');
+                const cancelBtn = document.getElementById('modal-cancel');
+                
+                titleEl.textContent = options.title || 'Confirm';
+                messageEl.textContent = message;
+                confirmBtn.textContent = options.confirmText || 'Confirm';
+                cancelBtn.textContent = options.cancelText || 'Cancel';
+                inputEl.classList.add('hidden');
+                inputEl.value = '';
+                
+                const types = {
+                    warning: { icon: 'fa-exclamation-triangle', color: 'text-terminal-amber', border: 'border-terminal-amber' },
+                    danger: { icon: 'fa-skull-crossbones', color: 'text-terminal-red', border: 'border-terminal-red' },
+                    info: { icon: 'fa-info-circle', color: 'text-terminal-blue', border: 'border-terminal-blue' }
+                };
+                const type = types[options.type] || types.warning;
+                iconEl.innerHTML = `<i class="fas ${type.icon}"></i>`;
+                iconEl.className = type.color;
+                confirmBtn.className = `px-4 py-2 text-xs uppercase tracking-wider border ${type.border} ${type.color} hover:bg-current/10 transition-colors`;
+                
+                modal.classList.remove('hidden');
+                
+                const cleanup = () => {
+                    modal.classList.add('hidden');
+                    confirmBtn.removeEventListener('click', onConfirm);
+                    cancelBtn.removeEventListener('click', onCancel);
+                    backdrop.removeEventListener('click', onCancel);
+                };
+                
+                const onConfirm = () => { cleanup(); resolve(true); };
+                const onCancel = () => { cleanup(); resolve(false); };
+                
+                confirmBtn.addEventListener('click', onConfirm);
+                cancelBtn.addEventListener('click', onCancel);
+                backdrop.addEventListener('click', onCancel);
+                confirmBtn.focus();
+            });
+        }
+        
+        // Prompt modal (replaces native prompt())
+        function showPromptModal(message, options = {}) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('custom-modal');
+                const backdrop = document.getElementById('modal-backdrop');
+                const titleEl = document.getElementById('modal-title');
+                const iconEl = document.getElementById('modal-icon');
+                const messageEl = document.getElementById('modal-message');
+                const inputEl = document.getElementById('modal-input');
+                const confirmBtn = document.getElementById('modal-confirm');
+                const cancelBtn = document.getElementById('modal-cancel');
+                
+                titleEl.textContent = options.title || 'Input Required';
+                messageEl.textContent = message;
+                confirmBtn.textContent = options.confirmText || 'Submit';
+                cancelBtn.textContent = options.cancelText || 'Cancel';
+                
+                inputEl.classList.remove('hidden');
+                inputEl.value = '';
+                inputEl.type = options.password ? 'password' : 'text';
+                inputEl.placeholder = options.placeholder || '';
+                
+                iconEl.innerHTML = '<i class="fas fa-key"></i>';
+                iconEl.className = 'text-terminal-amber';
+                confirmBtn.className = 'px-4 py-2 text-xs uppercase tracking-wider border border-terminal-amber text-terminal-amber hover:bg-terminal-amber/10 transition-colors';
+                
+                modal.classList.remove('hidden');
+                
+                const cleanup = () => {
+                    modal.classList.add('hidden');
+                    confirmBtn.removeEventListener('click', onConfirm);
+                    cancelBtn.removeEventListener('click', onCancel);
+                    backdrop.removeEventListener('click', onCancel);
+                    inputEl.removeEventListener('keydown', onKeydown);
+                };
+                
+                const onConfirm = () => { cleanup(); resolve(inputEl.value || null); };
+                const onCancel = () => { cleanup(); resolve(null); };
+                const onKeydown = (e) => { if (e.key === 'Enter') onConfirm(); };
+                
+                confirmBtn.addEventListener('click', onConfirm);
+                cancelBtn.addEventListener('click', onCancel);
+                backdrop.addEventListener('click', onCancel);
+                inputEl.addEventListener('keydown', onKeydown);
+                
+                setTimeout(() => inputEl.focus(), 100);
+            });
+        }
+        
+        // Alert modal (replaces native alert())
+        function showAlertModal(message, options = {}) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('alert-modal');
+                const backdrop = document.getElementById('alert-backdrop');
+                const titleEl = document.getElementById('alert-title');
+                const iconEl = document.getElementById('alert-icon');
+                const messageEl = document.getElementById('alert-message');
+                const okBtn = document.getElementById('alert-ok');
+                
+                titleEl.textContent = options.title || 'Notice';
+                messageEl.textContent = message;
+                
+                const types = {
+                    success: { icon: 'fa-check-circle', color: 'text-terminal-green', border: 'border-terminal-green' },
+                    error: { icon: 'fa-times-circle', color: 'text-terminal-red', border: 'border-terminal-red' },
+                    info: { icon: 'fa-info-circle', color: 'text-terminal-blue', border: 'border-terminal-blue' }
+                };
+                const type = types[options.type] || types.info;
+                iconEl.innerHTML = `<i class="fas ${type.icon}"></i>`;
+                iconEl.className = type.color;
+                okBtn.className = `px-4 py-2 text-xs uppercase tracking-wider border ${type.border} ${type.color} hover:bg-current/10 transition-colors`;
+                
+                modal.classList.remove('hidden');
+                
+                const cleanup = () => {
+                    modal.classList.add('hidden');
+                    okBtn.removeEventListener('click', onOk);
+                    backdrop.removeEventListener('click', onOk);
+                };
+                
+                const onOk = () => { cleanup(); resolve(); };
+                
+                okBtn.addEventListener('click', onOk);
+                backdrop.addEventListener('click', onOk);
+                okBtn.focus();
+            });
         }
 
         // ============================================
@@ -472,10 +781,10 @@
             const progressPercent = document.getElementById('llm-progress-percent');
             
             loadBtn.disabled = true;
-            loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+            loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> loading...';
             progress.classList.remove('hidden');
-            indicator.className = 'w-2 h-2 rounded-full bg-yellow-500 animate-pulse';
-            text.textContent = 'Loading...';
+            indicator.className = 'indicator indicator-warning pulse-subtle';
+            text.textContent = 'loading...';
             
             try {
                 progressText.textContent = 'Importing WebLLM...';
@@ -498,41 +807,38 @@
                 });
                 
                 // Success
-                indicator.className = 'w-2 h-2 rounded-full bg-green-500';
-                text.textContent = 'LLM Ready';
+                indicator.className = 'indicator indicator-active';
+                text.textContent = 'ready';
                 progress.classList.add('hidden');
                 loadBtn.classList.add('hidden');
                 generateBtn.disabled = false;
                 
-                // Update analysis content
                 const content = document.getElementById('analysis-content');
                 content.innerHTML = `
-                    <div class="text-slate-400 text-center py-8">
-                        <i class="fas fa-check-circle text-4xl mb-3 text-green-400"></i>
-                        <p class="text-green-400">LLM ready!</p>
-                        <p class="text-sm text-slate-500">Click "Generate Analysis" to get AI-powered insights.</p>
+                    <div class="text-terminal-muted text-center py-8">
+                        <i class="fas fa-check text-2xl mb-3 text-terminal-green"></i>
+                        <p class="text-sm text-terminal-green">LLM ready</p>
+                        <p class="text-xs opacity-60 mt-1">Click "generate" to get AI-powered insights.</p>
                     </div>
                 `;
                 
             } catch (error) {
                 console.error('Error loading LLM:', error);
-                indicator.className = 'w-2 h-2 rounded-full bg-red-500';
-                text.textContent = 'Load failed';
+                indicator.className = 'indicator indicator-error';
+                text.textContent = 'failed';
                 progressText.textContent = error.message;
                 
-                // Show retry button
                 loadBtn.classList.remove('hidden');
                 loadBtn.disabled = false;
-                loadBtn.innerHTML = '<i class="fas fa-redo"></i> Retry';
+                loadBtn.innerHTML = '<i class="fas fa-redo text-xs"></i> retry';
                 
-                // Update analysis content with error
                 const content = document.getElementById('analysis-content');
                 content.innerHTML = `
-                    <div class="text-slate-400 text-center py-8">
-                        <i class="fas fa-exclamation-triangle text-4xl mb-3 text-red-400"></i>
-                        <p class="text-red-400">Failed to load LLM</p>
-                        <p class="text-sm text-slate-500">${error.message}</p>
-                        <p class="text-sm text-slate-500 mt-2">Make sure you're using Chrome/Edge with WebGPU support.</p>
+                    <div class="text-terminal-muted text-center py-8">
+                        <i class="fas fa-exclamation-triangle text-2xl mb-3 text-terminal-red"></i>
+                        <p class="text-sm text-terminal-red">Failed to load LLM</p>
+                        <p class="text-xs opacity-60 mt-1">${error.message}</p>
+                        <p class="text-xs opacity-40 mt-1">Requires Chrome/Edge with WebGPU.</p>
                     </div>
                 `;
             }
@@ -548,13 +854,12 @@
             const content = document.getElementById('analysis-content');
             
             generateBtn.disabled = true;
-            generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+            generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i> generating...';
             
-            // Show loading state
             content.innerHTML = `
-                <div class="flex items-center gap-3 text-slate-400">
-                    <i class="fas fa-spinner fa-spin text-pink-400"></i>
-                    <span>Analyzing metrics and generating insights...</span>
+                <div class="flex items-center gap-3 text-terminal-muted text-sm">
+                    <i class="fas fa-spinner fa-spin text-terminal-amber"></i>
+                    <span>Analyzing metrics...</span>
                 </div>
             `;
             
@@ -565,18 +870,23 @@
                     messages: [
                         { 
                             role: 'system', 
-                            content: 'You are a data analyst expert. Analyze the provided metrics and give actionable insights. Be concise and specific. Use markdown formatting with **bold** for emphasis and bullet points for lists.'
+                            content: `You are a concise technical analyst. Analyze RAG system metrics factually.
+Rules:
+- Only comment on data that exists (not "N/A")
+- Use the reference thresholds provided to judge if values are good/bad
+- No generic advice - be specific to the actual numbers
+- Format: Use **bold** for key terms, keep sentences short
+- Never invent or assume data that isn't provided`
                         },
                         { role: 'user', content: prompt }
                     ],
-                    temperature: 0.7,
-                    max_tokens: 512,
+                    temperature: 0.3,
+                    max_tokens: 300,
                     stream: true
                 });
                 
-                // Stream the response
                 let fullResponse = '';
-                content.innerHTML = '<div id="analysis-stream" class="text-slate-200"></div>';
+                content.innerHTML = '<div id="analysis-stream" class="text-sm"></div>';
                 const streamDiv = document.getElementById('analysis-stream');
                 
                 for await (const chunk of response) {
@@ -585,90 +895,45 @@
                     streamDiv.innerHTML = markdownToHtml(fullResponse);
                 }
                 
-                // Add regenerate hint
                 content.innerHTML += `
-                    <div class="mt-4 pt-4 border-t border-slate-700 text-xs text-slate-500">
-                        <i class="fas fa-info-circle mr-1"></i>
-                        Click "Generate Analysis" again for a fresh perspective.
+                    <div class="mt-4 pt-4 border-t border-terminal-border text-xs text-terminal-muted opacity-60">
+                        <span class="text-terminal-amber">*</span> Click "generate" again for fresh perspective.
                     </div>
                 `;
                 
             } catch (error) {
                 console.error('Error generating analysis:', error);
                 content.innerHTML = `
-                    <div class="text-red-400">
+                    <div class="text-terminal-red text-sm">
                         <i class="fas fa-exclamation-triangle mr-2"></i>
-                        Error generating analysis: ${error.message}
+                        Error: ${error.message}
                     </div>
                 `;
             }
             
             generateBtn.disabled = false;
-            generateBtn.innerHTML = '<i class="fas fa-magic"></i> Regenerate';
+            generateBtn.innerHTML = '<i class="fas fa-magic text-xs"></i> <span>generate</span>';
             isGenerating = false;
         }
-        
-        // Simple markdown to HTML converter
-        function markdownToHtml(text) {
-            return text
-                .replace(/\*\*(.+?)\*\*/g, '<strong class="text-pink-300">$1</strong>')
+
+        // Simple markdown parser
+        function markdownToHtml(md) {
+            return md
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                .replace(/^### (.+)$/gm, '<h3 class="text-lg font-semibold text-white mt-4 mb-2">$1</h3>')
-                .replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold text-white mt-4 mb-2">$1</h2>')
-                .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-white mt-4 mb-2">$1</h1>')
-                .replace(/^- (.+)$/gm, '<li class="ml-4">$1</li>')
-                .replace(/(<li.*<\/li>\n?)+/g, '<ul class="list-disc list-inside my-2">$&</ul>')
-                .replace(/\n\n/g, '</p><p class="my-2">')
+                .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+                .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+                .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+                .replace(/^- (.+)$/gm, '<li>$1</li>')
+                .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
                 .replace(/\n/g, '<br>');
         }
 
         // ============================================
         // DATA LOADING
         // ============================================
-        async function loadData() {
-            try {
-                if (useFirebase) {
-                    // Load from Firebase
-                    const [sessionsSnap, aggregatesSnap] = await Promise.all([
-                        get(ref(database, 'sessions')),
-                        get(ref(database, 'aggregates'))
-                    ]);
-                    
-                    const sessionsData = sessionsSnap.exists() ? sessionsSnap.val() : {};
-                    const aggregates = aggregatesSnap.exists() ? aggregatesSnap.val() : getEmptyAggregates();
-                    
-                    // Convert sessions object to array
-                    const sessions = Object.values(sessionsData).map(session => {
-                        // Convert queries object to array if needed
-                        if (session.queries && typeof session.queries === 'object' && !Array.isArray(session.queries)) {
-                            session.queries = Object.values(session.queries);
-                        }
-                        return session;
-                    });
-                    
-                    console.log('✅ Loaded from Firebase:', sessions.length, 'sessions');
-                    return { sessions, aggregates };
-                }
-            } catch (e) {
-                console.warn('⚠️ Firebase unavailable, falling back to localStorage:', e.message);
-                useFirebase = false;
-            }
-            
-            // Fallback to localStorage
-            return loadLocalData();
-        }
         
-        function loadLocalData() {
-            try {
-                const raw = localStorage.getItem(STORAGE_KEY);
-                if (!raw) return { sessions: [], aggregates: getEmptyAggregates() };
-                return JSON.parse(raw);
-            } catch (e) {
-                console.error('Error loading local data:', e);
-                return { sessions: [], aggregates: getEmptyAggregates() };
-            }
-        }
-
+        // Default empty aggregates structure
         function getEmptyAggregates() {
             return {
                 totalSessions: 0,
@@ -677,384 +942,352 @@
                 totalThumbsDown: 0,
                 avgTTFT: 0,
                 avgTPS: 0,
-                avgTopSimilarity: 0,
-                avgSelfEvalFaithfulness: 0,
-                avgSelfEvalRelevance: 0,
-                avgSelfEvalCoherence: 0
+                avgTopSimilarity: 0
             };
         }
         
-        // Setup real-time listener for Firebase
-        function setupRealtimeListener() {
-            if (!useFirebase) return;
-            
-            // Listen to aggregates changes
-            onValue(ref(database, 'aggregates'), (snapshot) => {
-                console.log('🔄 Real-time update received');
-                updateDashboard();
+        // Safe property accessor
+        function safeGet(obj, path, defaultVal = 0) {
+            try {
+                return path.split('.').reduce((a, k) => (a && a[k] !== undefined) ? a[k] : defaultVal, obj) || defaultVal;
+            } catch (e) { return defaultVal; }
+        }
+        
+        // Extract queries from sessions (handles both array and object formats)
+        function extractQueries(sessions) {
+            return (sessions || []).flatMap(s => {
+                const queries = s.queries || {};
+                // Handle both array format and object format from Firebase
+                if (Array.isArray(queries)) {
+                    return queries.map(q => ({ ...q, sessionId: s.id }));
+                }
+                return Object.values(queries).map(q => ({ ...q, sessionId: s.id }));
             });
         }
-
-        // ============================================
-        // UI UPDATES
-        // ============================================
-        async function updateDashboard() {
-            const data = await loadData();
-            const agg = data.aggregates || getEmptyAggregates();
-            const allQueries = data.sessions.flatMap(s => s.queries || []);
-
-            // Show data source indicator
-            const sourceIndicator = document.getElementById('data-source');
-            if (sourceIndicator) {
-                sourceIndicator.innerHTML = useFirebase 
-                    ? '<i class="fas fa-cloud text-green-400 mr-1"></i>Firebase (Real-time)'
-                    : '<i class="fas fa-database text-yellow-400 mr-1"></i>Local Storage';
-            }
-
-            // KPI Cards
-            document.getElementById('kpi-sessions').textContent = agg.totalSessions || data.sessions.length || 0;
-            document.getElementById('kpi-queries').textContent = agg.totalQueries || allQueries.length || 0;
-            document.getElementById('kpi-ttft').innerHTML = `${Math.round(agg.avgTTFT) || 0}<span class="text-lg">ms</span>`;
-            
-            const totalVotes = (agg.totalThumbsUp || 0) + (agg.totalThumbsDown || 0);
-            const satisfaction = totalVotes > 0
-                ? Math.round((agg.totalThumbsUp / totalVotes) * 100)
-                : 0;
-            document.getElementById('kpi-satisfaction').innerHTML = `${satisfaction}<span class="text-lg">%</span>`;
-
-            // Retrieval Stats
-            document.getElementById('stat-top1').textContent = parseFloat(agg.avgTopSimilarity || 0).toFixed(3);
-            
-            const avgTopK = allQueries.length > 0
-                ? (allQueries.reduce((sum, q) => sum + (q.retrieval?.avgSimilarity || 0), 0) / allQueries.length).toFixed(3)
-                : '0.000';
-            document.getElementById('stat-topk').textContent = avgTopK;
-
-            // Latency Stats
-            const ttfts = allQueries.map(q => q.generation?.ttftMs || 0).filter(t => t > 0).sort((a, b) => a - b);
-            const p50 = ttfts.length > 0 ? ttfts[Math.floor(ttfts.length * 0.5)] : 0;
-            const p95 = ttfts.length > 0 ? ttfts[Math.floor(ttfts.length * 0.95)] : 0;
-            
-            document.getElementById('stat-p50').textContent = `${p50}ms`;
-            document.getElementById('stat-p95').textContent = `${p95}ms`;
-            document.getElementById('stat-tps').textContent = Math.round(agg.avgTPS) || 0;
-
-            // Update advanced KPIs
-            // If aggregates stored in Firebase don't include advanced metrics,
-            // compute them from the per-query records we just loaded (allQueries).
-            function computeAdvancedFromQueries(queries) {
-                const avg = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
-                const safe = (q, path) => {
-                    try {
-                        return path.split('.').reduce((a, k) => (a && a[k] !== undefined) ? a[k] : 0, q) || 0;
-                    } catch (e) { return 0; }
-                };
-
-                const ctxArr = queries.map(q => safe(q, 'advanced.contextUtilization'));
-                const groundingArr = queries.map(q => safe(q, 'advanced.answerGrounding'));
-                const hallucArr = queries.map(q => safe(q, 'advanced.hallucinationScore'));
-                const completeArr = queries.map(q => safe(q, 'advanced.completeness'));
-                const d1Arr = queries.map(q => safe(q, 'advanced.distinct1'));
-                const d2Arr = queries.map(q => safe(q, 'advanced.distinct2'));
-                const lenArr = queries.map(q => safe(q, 'advanced.responseLength'));
-                
-                // Self-eval metrics
-                const queriesWithSelfEval = queries.filter(q => q.selfEval);
-                const faithArr = queriesWithSelfEval.map(q => safe(q, 'selfEval.faithfulness'));
-                const relevArr = queriesWithSelfEval.map(q => safe(q, 'selfEval.relevance'));
-                const coherArr = queriesWithSelfEval.map(q => safe(q, 'selfEval.coherence'));
-
+        
+        // Load from localStorage as fallback
+        function loadLocalData() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return { sessions: [], aggregates: getEmptyAggregates() };
+                const data = JSON.parse(raw);
                 return {
-                    avgContextUtilization: avg(ctxArr),
-                    avgAnswerGrounding: avg(groundingArr),
-                    avgHallucinationScore: avg(hallucArr),
-                    avgCompleteness: avg(completeArr),
-                    avgDistinct1: avg(d1Arr),
-                    avgDistinct2: avg(d2Arr),
-                    avgResponseLength: avg(lenArr),
-                    // Self-eval
-                    avgSelfEvalFaithfulness: avg(faithArr),
-                    avgSelfEvalRelevance: avg(relevArr),
-                    avgSelfEvalCoherence: avg(coherArr)
+                    sessions: data.sessions || [],
+                    aggregates: data.aggregates || getEmptyAggregates()
                 };
+            } catch (e) {
+                console.error('Error loading local data:', e);
+                return { sessions: [], aggregates: getEmptyAggregates() };
             }
-
-            const computedAdvanced = computeAdvancedFromQueries(allQueries || []);
-
-            const ctxVal = (agg.avgContextUtilization !== undefined && agg.avgContextUtilization !== null)
-                ? agg.avgContextUtilization
-                : computedAdvanced.avgContextUtilization || 0;
-            const groundingVal = (agg.avgAnswerGrounding !== undefined && agg.avgAnswerGrounding !== null)
-                ? agg.avgAnswerGrounding
-                : computedAdvanced.avgAnswerGrounding || 0;
-            const hallucVal = (agg.avgHallucinationScore !== undefined && agg.avgHallucinationScore !== null)
-                ? agg.avgHallucinationScore
-                : computedAdvanced.avgHallucinationScore || 0;
-            const completeVal = (agg.avgCompleteness !== undefined && agg.avgCompleteness !== null)
-                ? agg.avgCompleteness
-                : computedAdvanced.avgCompleteness || 0;
-
-            document.getElementById('kpi-context-util').textContent = Math.round((ctxVal || 0) * 100);
-            document.getElementById('kpi-grounding').textContent = Math.round((groundingVal || 0) * 100);
-            document.getElementById('kpi-hallucination').textContent = Math.round((hallucVal || 0) * 100);
-            document.getElementById('kpi-completeness').textContent = Math.round((completeVal || 0) * 100);
-
-            document.getElementById('stat-distinct1').textContent = (agg.avgDistinct1 || computedAdvanced.avgDistinct1 || 0).toFixed(3);
-            document.getElementById('stat-distinct2').textContent = (agg.avgDistinct2 || computedAdvanced.avgDistinct2 || 0).toFixed(3);
-            document.getElementById('stat-avg-length').textContent = Math.round(agg.avgResponseLength || computedAdvanced.avgResponseLength || 0);
-
-            // Feedback
-            const thumbsUp = agg.totalThumbsUp || 0;
-            const thumbsDown = agg.totalThumbsDown || 0;
-            const noFeedback = Math.max(0, (agg.totalQueries || allQueries.length) - thumbsUp - thumbsDown);
-            document.getElementById('feedback-up').textContent = thumbsUp;
-            document.getElementById('feedback-down').textContent = thumbsDown;
-            document.getElementById('feedback-none').textContent = noFeedback;
-
-            // Self-Eval - Use computed values from queries if agg doesn't have them
-            const faithfulness = parseFloat(agg.avgSelfEvalFaithfulness || computedAdvanced.avgSelfEvalFaithfulness || 0);
-            const relevance = parseFloat(agg.avgSelfEvalRelevance || computedAdvanced.avgSelfEvalRelevance || 0);
-            const coherence = parseFloat(agg.avgSelfEvalCoherence || computedAdvanced.avgSelfEvalCoherence || 0);
-            
-            document.getElementById('eval-faithfulness').textContent = `${faithfulness.toFixed(1)} / 5`;
-            document.getElementById('eval-relevance').textContent = `${relevance.toFixed(1)} / 5`;
-            document.getElementById('eval-coherence').textContent = `${coherence.toFixed(1)} / 5`;
-            
-            document.getElementById('bar-faithfulness').style.width = `${(faithfulness / 5) * 100}%`;
-            document.getElementById('bar-relevance').style.width = `${(relevance / 5) * 100}%`;
-            document.getElementById('bar-coherence').style.width = `${(coherence / 5) * 100}%`;
-
-            // Update Charts
-            updateCharts(allQueries, agg);
-
-            // Update Table
-            updateQueriesTable(allQueries);
+        }
+        
+        async function loadData() {
+            try {
+                const sessionsSnap = await get(ref(database, 'sessions'));
+                const aggSnap = await get(ref(database, 'aggregates'));
+                
+                const sessions = [];
+                if (sessionsSnap.exists()) {
+                    sessionsSnap.forEach(child => {
+                        sessions.push({ id: child.key, ...child.val() });
+                    });
+                }
+                
+                const aggregates = aggSnap.exists() ? { ...getEmptyAggregates(), ...aggSnap.val() } : getEmptyAggregates();
+                
+                document.getElementById('data-source').innerHTML = `
+                    <span class="indicator indicator-active"></span>
+                    <span>firebase</span>
+                `;
+                useFirebase = true;
+                
+                return { sessions, aggregates };
+            } catch (e) {
+                console.warn('Firebase unavailable, using localStorage:', e);
+                useFirebase = false;
+                
+                document.getElementById('data-source').innerHTML = `
+                    <span class="indicator indicator-warning"></span>
+                    <span>local</span>
+                `;
+                
+                return loadLocalData();
+            }
         }
 
         // ============================================
-        // CHARTS
+        // CHART CONFIGURATION
         // ============================================
+        const chartColors = {
+            amber: '#c9a227',
+            green: '#5a9a6f',
+            red: '#a85c5c',
+            blue: '#5a7a9a',
+            cyan: '#5a8a9a',
+            purple: '#8a6a9a',
+            muted: '#8a8a7a',
+            border: '#2a2a2a',
+            bg: '#1a1a1a'
+        };
+
+        Chart.defaults.color = chartColors.muted;
+        Chart.defaults.borderColor = chartColors.border;
+        Chart.defaults.font.family = "'JetBrains Mono', monospace";
+        Chart.defaults.font.size = 10;
+
         function initCharts() {
-            // Retrieval Quality Chart (Bar)
-            const retrievalCtx = document.getElementById('retrievalChart').getContext('2d');
-            charts.retrieval = new Chart(retrievalCtx, {
-                type: 'bar',
+            // Retrieval Chart
+            charts.retrieval = new Chart(document.getElementById('retrievalChart'), {
+                type: 'line',
                 data: {
                     labels: [],
                     datasets: [{
                         label: 'Top-1 Similarity',
                         data: [],
-                        backgroundColor: 'rgba(59, 130, 246, 0.5)',
-                        borderColor: 'rgba(59, 130, 246, 1)',
-                        borderWidth: 1
+                        borderColor: chartColors.blue,
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        tension: 0.3,
+                        pointRadius: 2
+                    }, {
+                        label: 'Avg Top-K',
+                        data: [],
+                        borderColor: chartColors.cyan,
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        tension: 0.3,
+                        pointRadius: 2
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 8, padding: 15 } } },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 1,
-                            grid: { color: 'rgba(255,255,255,0.1)' },
-                            ticks: { color: '#94a3b8' }
-                        },
-                        x: {
-                            grid: { display: false },
-                            ticks: { color: '#94a3b8', maxRotation: 45 }
-                        }
-                    },
-                    plugins: {
-                        legend: { display: false }
+                        y: { beginAtZero: true, max: 1, grid: { color: chartColors.border } },
+                        x: { grid: { display: false } }
                     }
                 }
             });
 
-            // Latency Distribution Chart (Line)
-            const latencyCtx = document.getElementById('latencyChart').getContext('2d');
-            charts.latency = new Chart(latencyCtx, {
-                type: 'line',
+            // Latency Chart
+            charts.latency = new Chart(document.getElementById('latencyChart'), {
+                type: 'bar',
                 data: {
                     labels: [],
                     datasets: [{
                         label: 'TTFT (ms)',
                         data: [],
-                        borderColor: 'rgba(234, 179, 8, 1)',
-                        backgroundColor: 'rgba(234, 179, 8, 0.1)',
-                        fill: true,
-                        tension: 0.4
+                        backgroundColor: chartColors.amber,
+                        borderWidth: 0
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: 'rgba(255,255,255,0.1)' },
-                            ticks: { color: '#94a3b8' }
-                        },
-                        x: {
-                            grid: { display: false },
-                            ticks: { color: '#94a3b8', maxTicksLimit: 10 }
-                        }
-                    },
-                    plugins: {
-                        legend: { display: false }
+                        y: { beginAtZero: true, grid: { color: chartColors.border } },
+                        x: { grid: { display: false } }
                     }
                 }
             });
 
-            // Feedback Pie Chart
-            const feedbackCtx = document.getElementById('feedbackChart').getContext('2d');
-            charts.feedback = new Chart(feedbackCtx, {
+            // Quality Chart
+            charts.quality = new Chart(document.getElementById('qualityChart'), {
+                type: 'radar',
+                data: {
+                    labels: ['Distinct-1', 'Distinct-2', 'Grounding', 'Context', 'Complete'],
+                    datasets: [{
+                        label: 'Quality',
+                        data: [0, 0, 0, 0, 0],
+                        borderColor: chartColors.purple,
+                        backgroundColor: 'rgba(138, 106, 154, 0.1)',
+                        borderWidth: 1,
+                        pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 1,
+                            grid: { color: chartColors.border },
+                            angleLines: { color: chartColors.border },
+                            pointLabels: { color: chartColors.muted }
+                        }
+                    }
+                }
+            });
+
+            // Query Type Chart
+            charts.queryType = new Chart(document.getElementById('queryTypeChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Question', 'Summary', 'Comparison', 'Generation', 'Other'],
+                    datasets: [{
+                        data: [0, 0, 0, 0, 0],
+                        backgroundColor: [chartColors.blue, chartColors.green, chartColors.amber, chartColors.purple, chartColors.muted],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '60%',
+                    plugins: { legend: { position: 'right', labels: { boxWidth: 8, padding: 8 } } }
+                }
+            });
+
+            // Feedback Chart
+            charts.feedback = new Chart(document.getElementById('feedbackChart'), {
                 type: 'doughnut',
                 data: {
                     labels: ['Helpful', 'Not Helpful', 'No Feedback'],
                     datasets: [{
                         data: [0, 0, 0],
-                        backgroundColor: [
-                            'rgba(34, 197, 94, 0.7)',
-                            'rgba(239, 68, 68, 0.7)',
-                            'rgba(100, 116, 139, 0.5)'
-                        ],
-                        borderColor: [
-                            'rgba(34, 197, 94, 1)',
-                            'rgba(239, 68, 68, 1)',
-                            'rgba(100, 116, 139, 1)'
-                        ],
-                        borderWidth: 2
+                        backgroundColor: [chartColors.green, chartColors.red, chartColors.border],
+                        borderWidth: 0
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    }
-                }
-            });
-            
-            // Quality Chart (Generation metrics)
-            const qualityCtx = document.getElementById('qualityChart').getContext('2d');
-            charts.quality = new Chart(qualityCtx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [
-                        {
-                            label: 'Distinct-1',
-                            data: [],
-                            borderColor: 'rgb(168, 85, 247)',
-                            backgroundColor: 'rgba(168, 85, 247, 0.1)',
-                            tension: 0.4
-                        },
-                        {
-                            label: 'Grounding',
-                            data: [],
-                            borderColor: 'rgb(16, 185, 129)',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                            tension: 0.4
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 1,
-                            grid: { color: 'rgba(255,255,255,0.1)' },
-                            ticks: { color: '#94a3b8' }
-                        },
-                        x: {
-                            grid: { display: false },
-                            ticks: { color: '#94a3b8' }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top',
-                            labels: { color: '#cbd5e1' }
-                        }
-                    }
-                }
-            });
-
-            // Query Type Distribution Chart
-            const queryTypeCtx = document.getElementById('queryTypeChart').getContext('2d');
-            charts.queryType = new Chart(queryTypeCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Questions', 'Summaries', 'Comparisons', 'Generation', 'Other'],
-                    datasets: [{
-                        data: [0, 0, 0, 0, 0],
-                        backgroundColor: [
-                            'rgba(59, 130, 246, 0.8)',
-                            'rgba(16, 185, 129, 0.8)',
-                            'rgba(245, 158, 11, 0.8)',
-                            'rgba(236, 72, 153, 0.8)',
-                            'rgba(139, 92, 246, 0.8)'
-                        ],
-                        borderColor: '#1e293b',
-                        borderWidth: 2
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: { color: '#cbd5e1' }
-                        }
-                    }
+                    cutout: '70%',
+                    plugins: { legend: { display: false } }
                 }
             });
         }
 
-        function updateCharts(allQueries, agg) {
-            const recent = allQueries.slice(-20);
+        // ============================================
+        // DASHBOARD UPDATE
+        // ============================================
+        async function updateDashboard() {
+            const data = await loadData();
+            const sessions = data.sessions || [];
+            const agg = data.aggregates || getEmptyAggregates();
+            
+            // Extract all queries using unified function
+            const allQueries = extractQueries(sessions);
 
-            // Retrieval Chart
+            // KPIs
+            document.getElementById('kpi-sessions').textContent = agg.totalSessions || sessions.length || 0;
+            document.getElementById('kpi-queries').textContent = agg.totalQueries || allQueries.length || 0;
+            document.getElementById('kpi-ttft').innerHTML = `${Math.round(agg.avgTTFT) || 0}<span class="text-sm ml-1">ms</span>`;
+            
+            const totalVotes = (agg.totalThumbsUp || 0) + (agg.totalThumbsDown || 0);
+            const satisfaction = totalVotes > 0 ? Math.round((agg.totalThumbsUp / totalVotes) * 100) : 0;
+            document.getElementById('kpi-satisfaction').innerHTML = `${satisfaction}<span class="text-sm ml-1">%</span>`;
+
+            // Advanced KPIs
+            const avg = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+            const ctxUtil = avg(allQueries.map(q => safeGet(q, 'advanced.contextUtilization')));
+            const grounding = avg(allQueries.map(q => safeGet(q, 'advanced.answerGrounding')));
+            const hallucination = avg(allQueries.map(q => safeGet(q, 'advanced.hallucinationScore')));
+            const completeness = avg(allQueries.map(q => safeGet(q, 'advanced.completeness')));
+
+            document.getElementById('kpi-context-util').innerHTML = `${Math.round(ctxUtil * 100)}<span class="text-sm ml-1">%</span>`;
+            document.getElementById('kpi-grounding').innerHTML = `${Math.round(grounding * 100)}<span class="text-sm ml-1">%</span>`;
+            document.getElementById('kpi-hallucination').innerHTML = `${Math.round(hallucination * 100)}<span class="text-sm ml-1">%</span>`;
+            document.getElementById('kpi-completeness').innerHTML = `${Math.round(completeness * 100)}<span class="text-sm ml-1">%</span>`;
+
+            // Update charts
+            updateRetrievalChart(allQueries);
+            updateLatencyChart(allQueries);
+            updateQualityChart(allQueries);
+            updateQueryTypeChart(allQueries);
+            updateFeedbackChart(agg, allQueries);
+            updateSelfEvalBars(allQueries);
+            updateQueriesTable(allQueries);
+        }
+
+        function updateRetrievalChart(queries) {
+            const recent = queries.slice(-20);
             charts.retrieval.data.labels = recent.map((_, i) => `Q${i + 1}`);
             charts.retrieval.data.datasets[0].data = recent.map(q => q.retrieval?.topSimilarity || 0);
+            charts.retrieval.data.datasets[1].data = recent.map(q => q.retrieval?.avgSimilarity || 0);
             charts.retrieval.update();
 
-            // Latency Chart
+            const top1Avg = queries.length ? queries.reduce((s, q) => s + (q.retrieval?.topSimilarity || 0), 0) / queries.length : 0;
+            const topkAvg = queries.length ? queries.reduce((s, q) => s + (q.retrieval?.avgSimilarity || 0), 0) / queries.length : 0;
+            document.getElementById('stat-top1').textContent = top1Avg.toFixed(3);
+            document.getElementById('stat-topk').textContent = topkAvg.toFixed(3);
+        }
+
+        function updateLatencyChart(queries) {
+            const recent = queries.slice(-15);
             charts.latency.data.labels = recent.map((_, i) => `Q${i + 1}`);
             charts.latency.data.datasets[0].data = recent.map(q => q.generation?.ttftMs || 0);
             charts.latency.update();
 
-            // Feedback Chart
-            const up = agg.totalThumbsUp || 0;
-            const down = agg.totalThumbsDown || 0;
-            const none = Math.max(0, (agg.totalQueries || allQueries.length) - up - down);
-            charts.feedback.data.datasets[0].data = [up, down, none];
-            charts.feedback.update();
+            const ttfts = queries.map(q => q.generation?.ttftMs || 0).filter(t => t > 0).sort((a, b) => a - b);
+            const p50 = ttfts.length ? ttfts[Math.floor(ttfts.length * 0.5)] : 0;
+            const p95 = ttfts.length ? ttfts[Math.floor(ttfts.length * 0.95)] : 0;
+            const avgTps = queries.length ? queries.reduce((s, q) => s + (q.generation?.tokensPerSecond || 0), 0) / queries.length : 0;
 
-            // Quality Chart
-            charts.quality.data.labels = recent.map((_, i) => `Q${i + 1}`);
-            charts.quality.data.datasets[0].data = recent.map(q => q.advanced?.distinct1 || 0);
-            charts.quality.data.datasets[1].data = recent.map(q => q.advanced?.answerGrounding || 0);
+            document.getElementById('stat-p50').textContent = `${Math.round(p50)}ms`;
+            document.getElementById('stat-p95').textContent = `${Math.round(p95)}ms`;
+            document.getElementById('stat-tps').textContent = Math.round(avgTps);
+        }
+
+        function updateQualityChart(queries) {
+            const avg = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+            const d1 = avg(queries.map(q => q.advanced?.distinct1 || 0));
+            const d2 = avg(queries.map(q => q.advanced?.distinct2 || 0));
+            const gr = avg(queries.map(q => q.advanced?.answerGrounding || 0));
+            const ctx = avg(queries.map(q => q.advanced?.contextUtilization || 0));
+            const comp = avg(queries.map(q => q.advanced?.completeness || 0));
+
+            charts.quality.data.datasets[0].data = [d1, d2, gr, ctx, comp];
             charts.quality.update();
 
-            // Query Type Chart - Aggregate from all queries
-            const queryTypes = [0, 0, 0, 0, 0]; // question, summary, comparison, generation, other
-            allQueries.forEach(q => {
-                const type = q.advanced?.queryType || 'other';
-                switch(type) {
-                    case 'question': queryTypes[0]++; break;
-                    case 'summary': queryTypes[1]++; break;
-                    case 'comparison': queryTypes[2]++; break;
-                    case 'generation': queryTypes[3]++; break;
-                    default: queryTypes[4]++;
-                }
+            document.getElementById('stat-distinct1').textContent = d1.toFixed(3);
+            document.getElementById('stat-distinct2').textContent = d2.toFixed(3);
+            const avgLen = avg(queries.map(q => q.advanced?.responseLength || 0));
+            document.getElementById('stat-avg-length').textContent = Math.round(avgLen);
+        }
+
+        function updateQueryTypeChart(queries) {
+            const types = { question: 0, summary: 0, comparison: 0, generation: 0, other: 0 };
+            queries.forEach(q => {
+                const t = q.advanced?.queryType || 'other';
+                if (types.hasOwnProperty(t)) types[t]++;
+                else types.other++;
             });
-            charts.queryType.data.datasets[0].data = queryTypes;
+            charts.queryType.data.datasets[0].data = Object.values(types);
             charts.queryType.update();
+        }
+
+        function updateFeedbackChart(agg, queries) {
+            const up = agg.totalThumbsUp || 0;
+            const down = agg.totalThumbsDown || 0;
+            const none = queries.length - up - down;
+            charts.feedback.data.datasets[0].data = [up, down, Math.max(0, none)];
+            charts.feedback.update();
+
+            document.getElementById('feedback-up').textContent = up;
+            document.getElementById('feedback-down').textContent = down;
+            document.getElementById('feedback-none').textContent = Math.max(0, none);
+        }
+
+        function updateSelfEvalBars(queries) {
+            const avg = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+            const withEval = queries.filter(q => q.selfEval);
+            
+            const faith = avg(withEval.map(q => q.selfEval?.faithfulness || 0));
+            const rel = avg(withEval.map(q => q.selfEval?.relevance || 0));
+            const coh = avg(withEval.map(q => q.selfEval?.coherence || 0));
+
+            document.getElementById('eval-faithfulness').textContent = `${faith.toFixed(1)} / 5`;
+            document.getElementById('eval-relevance').textContent = `${rel.toFixed(1)} / 5`;
+            document.getElementById('eval-coherence').textContent = `${coh.toFixed(1)} / 5`;
+
+            document.getElementById('bar-faithfulness').style.width = `${(faith / 5) * 100}%`;
+            document.getElementById('bar-relevance').style.width = `${(rel / 5) * 100}%`;
+            document.getElementById('bar-coherence').style.width = `${(coh / 5) * 100}%`;
         }
 
         // ============================================
@@ -1071,8 +1304,6 @@
             }
             
             noQueries.classList.add('hidden');
-            
-            // Show last 20 queries, most recent first
             const recent = queries.slice(-20).reverse();
             
             tbody.innerHTML = recent.map(q => {
@@ -1082,27 +1313,27 @@
                 const tps = q.generation?.tokensPerSecond || 0;
                 const topSim = (q.retrieval?.topSimilarity || 0).toFixed(3);
                 
-                let feedbackHtml = '<span class="text-slate-500">—</span>';
+                let feedbackHtml = '<span class="text-terminal-muted">—</span>';
                 if (q.feedback?.userVote === 'up') {
-                    feedbackHtml = '<i class="fas fa-thumbs-up text-green-400"></i>';
+                    feedbackHtml = '<i class="fas fa-thumbs-up text-terminal-green"></i>';
                 } else if (q.feedback?.userVote === 'down') {
-                    feedbackHtml = '<i class="fas fa-thumbs-down text-red-400"></i>';
+                    feedbackHtml = '<i class="fas fa-thumbs-down text-terminal-red"></i>';
                 }
                 
-                let evalHtml = '<span class="text-slate-500">—</span>';
+                let evalHtml = '<span class="text-terminal-muted">—</span>';
                 if (q.selfEval) {
                     const avg = ((q.selfEval.faithfulness + q.selfEval.relevance + q.selfEval.coherence) / 3).toFixed(1);
-                    const color = avg >= 4 ? 'text-green-400' : avg >= 3 ? 'text-yellow-400' : 'text-red-400';
+                    const color = avg >= 4 ? 'text-terminal-green' : avg >= 3 ? 'text-terminal-amber' : 'text-terminal-red';
                     evalHtml = `<span class="${color}">${avg}/5</span>`;
                 }
                 
                 return `
-                    <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
-                        <td class="py-3 pr-4 text-slate-400 text-xs">${time}</td>
+                    <tr>
+                        <td class="py-3 pr-4 text-terminal-muted text-xs">${time}</td>
                         <td class="py-3 pr-4" title="${q.query || ''}">${queryText}</td>
-                        <td class="py-3 pr-4">${ttft}ms</td>
+                        <td class="py-3 pr-4 text-terminal-amber">${ttft}ms</td>
                         <td class="py-3 pr-4">${tps}</td>
-                        <td class="py-3 pr-4">${topSim}</td>
+                        <td class="py-3 pr-4 text-terminal-blue">${topSim}</td>
                         <td class="py-3 pr-4">${feedbackHtml}</td>
                         <td class="py-3">${evalHtml}</td>
                     </tr>
@@ -1115,56 +1346,87 @@
         // ============================================
         async function generateAnalysisPrompt() {
             const data = await loadData();
-            const agg = data.aggregates;
-            const allQueries = data.sessions.flatMap(s => s.queries || []);
+            const agg = data.aggregates || getEmptyAggregates();
+            const allQueries = extractQueries(data.sessions);
             
             const totalVotes = (agg.totalThumbsUp || 0) + (agg.totalThumbsDown || 0);
-            const satisfaction = totalVotes > 0
-                ? Math.round((agg.totalThumbsUp / totalVotes) * 100)
-                : 0;
+            const satisfaction = totalVotes > 0 ? Math.round((agg.totalThumbsUp / totalVotes) * 100) : null;
             
-            // Compute self-eval from queries (same as display)
-            const avg = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+            const avg = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
             const queriesWithSelfEval = allQueries.filter(q => q.selfEval);
-            const faithfulness = avg(queriesWithSelfEval.map(q => q.selfEval?.faithfulness || 0));
-            const relevance = avg(queriesWithSelfEval.map(q => q.selfEval?.relevance || 0));
-            const coherence = avg(queriesWithSelfEval.map(q => q.selfEval?.coherence || 0));
+            const faithfulness = avg(queriesWithSelfEval.map(q => safeGet(q, 'selfEval.faithfulness')));
+            const relevance = avg(queriesWithSelfEval.map(q => safeGet(q, 'selfEval.relevance')));
+            const coherence = avg(queriesWithSelfEval.map(q => safeGet(q, 'selfEval.coherence')));
             
-            // Compute advanced metrics from queries
-            const ctxUtil = avg(allQueries.map(q => q.advanced?.contextUtilization || 0));
-            const grounding = avg(allQueries.map(q => q.advanced?.answerGrounding || 0));
-            const hallucination = avg(allQueries.map(q => q.advanced?.hallucinationScore || 0));
+            const ctxUtil = avg(allQueries.map(q => safeGet(q, 'advanced.contextUtilization')));
+            const grounding = avg(allQueries.map(q => safeGet(q, 'advanced.answerGrounding')));
+            const hallucination = avg(allQueries.map(q => safeGet(q, 'advanced.hallucinationScore')));
+            
+            const sessionCount = agg.totalSessions || data.sessions.length || 0;
+            const queryCount = allQueries.length;
+            
+            // Build context-aware prompt
+            const formatMetric = (val, suffix = '') => val !== null && !isNaN(val) ? `${typeof val === 'number' && val < 10 ? val.toFixed(1) : Math.round(val)}${suffix}` : 'N/A (no data)';
+            
+            // Check if we have enough data
+            if (queryCount === 0) {
+                return `No queries have been recorded yet. The dashboard is empty.
                 
-            return `Analyze these RAG system metrics and provide insights:
+Please respond with a brief message explaining that:
+1. No data is available yet to analyze
+2. The user should use the main app to make some queries first
+3. Once queries are made, meaningful analytics will appear here
 
-## Metrics Summary (Aggregated from ${agg.totalSessions || data.sessions.length} sessions, ${allQueries.length} queries)
-- User Satisfaction: ${satisfaction}% (${agg.totalThumbsUp || 0} up, ${agg.totalThumbsDown || 0} down)
-- Avg TTFT: ${Math.round(agg.avgTTFT) || 0}ms
-- Avg TPS: ${Math.round(agg.avgTPS) || 0} tokens/sec
-- Avg Top Similarity: ${(agg.avgTopSimilarity || 0).toFixed(3)}
-- Context Utilization: ${Math.round(ctxUtil * 100)}%
-- Answer Grounding: ${Math.round(grounding * 100)}%
-- Hallucination Score: ${Math.round(hallucination * 100)}%
-- Self-Eval Faithfulness: ${faithfulness.toFixed(1)}/5 (from ${queriesWithSelfEval.length} evals)
-- Self-Eval Relevance: ${relevance.toFixed(1)}/5
-- Self-Eval Coherence: ${coherence.toFixed(1)}/5
+Keep it to 2-3 sentences.`;
+            }
+            
+            return `Analyze this RAG (Retrieval-Augmented Generation) system performance data.
 
-Provide a brief analysis with:
-1. **Strengths** - What's working well
-2. **Areas for Improvement** - What could be better
-3. **Recommendations** - Specific actionable suggestions
+## Data Summary
+- Sessions: ${sessionCount} | Queries: ${queryCount}
+- User Feedback: ${totalVotes > 0 ? `${satisfaction}% positive (${agg.totalThumbsUp || 0}↑ / ${agg.totalThumbsDown || 0}↓)` : 'No feedback collected yet'}
 
-Keep it concise (under 200 words).`;
+## Performance Metrics (with reference thresholds)
+- TTFT (Time to First Token): ${formatMetric(agg.avgTTFT, 'ms')} [Good: <500ms, OK: 500-2000ms, Slow: >2000ms]
+- TPS (Tokens/Second): ${formatMetric(agg.avgTPS)} [Good: >10, OK: 5-10, Slow: <5]
+- Top Similarity: ${formatMetric(agg.avgTopSimilarity ? agg.avgTopSimilarity * 100 : null, '%')} [Good: >60%, OK: 40-60%, Low: <40%]
+
+## RAG Quality Metrics
+- Context Utilization: ${formatMetric(ctxUtil ? ctxUtil * 100 : null, '%')} [measures how much retrieved context is used]
+- Answer Grounding: ${formatMetric(grounding ? grounding * 100 : null, '%')} [measures if answers are based on context]
+- Hallucination Score: ${formatMetric(hallucination ? hallucination * 100 : null, '%')} [lower is better, <20% is good]
+
+## Self-Evaluation (1-5 scale, from ${queriesWithSelfEval.length} evaluated queries)
+- Faithfulness: ${formatMetric(faithfulness)}/5 | Relevance: ${formatMetric(relevance)}/5 | Coherence: ${formatMetric(coherence)}/5
+
+## Instructions
+Based on the ACTUAL values above (not hypotheticals), provide:
+1. **Status**: One sentence overall assessment
+2. **Key Finding**: The most significant insight from this data
+3. **Action**: One specific, actionable recommendation
+
+Rules:
+- If a metric shows "N/A", acknowledge the missing data
+- Don't invent problems that don't exist in the data
+- Be specific to the actual numbers shown
+- Keep total response under 100 words`;
+        }
+
+        // ============================================
+        // REALTIME LISTENER
+        // ============================================
+        function setupRealtimeListener() {
+            if (!useFirebase) return;
+            
+            onValue(ref(database, 'sessions'), () => {
+                updateDashboard();
+            });
         }
 
         // ============================================
         // EVENT HANDLERS
         // ============================================
-        
-        // Load LLM button
         document.getElementById('load-llm-btn').addEventListener('click', loadLLM);
-        
-        // Generate Analysis button - now uses local LLM
         document.getElementById('generate-analysis-btn').addEventListener('click', generateAnalysis);
 
         document.getElementById('refresh-btn').addEventListener('click', () => {
@@ -1172,29 +1434,57 @@ Keep it concise (under 200 words).`;
         });
 
         document.getElementById('clear-data-btn').addEventListener('click', async () => {
-            // Demande de mot de passe avant suppression
-            const password = prompt('Action sécurisée : Veuillez entrer le mot de passe pour effacer les données :');
+            const password = await showPromptModal(
+                'Enter admin password to clear all analytics data.',
+                {
+                    title: 'Authentication Required',
+                    password: true,
+                    placeholder: 'Password...',
+                    confirmText: 'Verify'
+                }
+            );
+            
+            if (!password) return;
             
             const isValid = await verifyPassword(password);
             
             if (!isValid) {
-                alert('❌ Mot de passe incorrect. Accès refusé.');
+                await showAlertModal('Incorrect password. Access denied.', {
+                    title: 'Access Denied',
+                    type: 'error'
+                });
                 return;
             }
 
-            if (confirm('⚠️ ATTENTION : Vous allez supprimer TOUTES les données Firebase et locales. Cette action est irréversible. Confirmer ?')) {
+            const confirmed = await showConfirmModal(
+                'This will permanently delete ALL sessions, queries, and analytics data. This action cannot be undone.',
+                {
+                    title: 'Delete All Data',
+                    type: 'danger',
+                    confirmText: 'Delete Everything',
+                    cancelText: 'Cancel'
+                }
+            );
+            
+            if (confirmed) {
                 try {
                     if (useFirebase) {
                         await remove(ref(database, 'sessions'));
                         await remove(ref(database, 'aggregates'));
-                        console.log('✅ Firebase data cleared');
+                        console.log('Firebase data cleared');
                     }
                     localStorage.removeItem(STORAGE_KEY);
-                    alert('✅ Données effacées avec succès.');
+                    await showAlertModal('All data has been cleared successfully.', {
+                        title: 'Data Cleared',
+                        type: 'success'
+                    });
                     updateDashboard();
                 } catch (e) {
                     console.error('Error clearing data:', e);
-                    alert('Error clearing Firebase data. Check console for details.');
+                    await showAlertModal('Failed to clear Firebase data. Check console for details.', {
+                        title: 'Error',
+                        type: 'error'
+                    });
                 }
             }
         });
@@ -1206,11 +1496,7 @@ Keep it concise (under 200 words).`;
             initCharts();
             await updateDashboard();
             setupRealtimeListener();
-            
-            // Auto-load LLM in background
             loadLLM();
-            
-            // Auto-refresh every 30 seconds
             setInterval(updateDashboard, 30000);
         });
     </script>
