@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>// Local LLM Literature Reviewer</title>
+    <title>// Almost Local LLM Literature Reviewer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -339,8 +339,8 @@
             <div class="flex items-center gap-4">
                 <div class="text-terminal-amber text-lg font-display">//</div>
                 <div>
-                    <h1 class="text-base font-medium text-terminal-text tracking-wide">LOCAL_LLM_REVIEWER</h1>
-                    <p class="text-xs text-terminal-muted mt-0.5">100% Private • Browser-Based • No Cloud</p>
+                    <h1 class="text-base font-medium text-terminal-text tracking-wide">ALMOST_LOCAL_LLM_REVIEWER</h1>
+                    <p class="text-xs text-terminal-muted mt-0.5">50% Private • Almost Browser-Based • Almost No Cloud</p>
                 </div>
             </div>
             <div class="flex items-center gap-4">
@@ -451,11 +451,11 @@
                                 <span id="vram-estimate" class="text-terminal-amber">~1.2GB VRAM</span>
                             </label>
                             <select id="model-selector" class="w-full p-2 mt-1">
-                                <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC" data-vram="~2.4GB">◆ Llama 3.2 3B (Balanced)</option>
-                                <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC" data-vram="~1.2GB" selected>⚡ Llama 3.2 1B (Fastest)</option>
-                                <option value="Llama-3.1-8B-Instruct-q4f32_1-MLC" data-vram="~6.0GB">● Llama 3.1 8B (Smartest)</option>
-                                <option value="gemma-2-2b-it-q4f16_1-MLC" data-vram="~1.8GB">◇ Gemma 2 2B (Google)</option>
-                                <option value="Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC" data-vram="~5.5GB">○ Hermes 2 Pro 8B</option>
+                                <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC" data-vram="~2.4GB">◆ Llama 3.2 3B (best option)</option>
+                                <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC" data-vram="~1.2GB" selected>⚡ Llama 3.2 1B (fastest but not great) </option>
+                                <option value="Llama-3.1-8B-Instruct-q4f32_1-MLC" data-vram="~6.0GB">● Llama 3.1 8B (Cool if powerful pc)</option>
+                                <option value="gemma-2-2b-it-q4f16_1-MLC" data-vram="~1.8GB">◇ Gemma 2 2B (Never tried it ah ah!)</option>
+                                <option value="Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC" data-vram="~5.5GB">○ Hermes 2 Pro 8B (does this one really exists ?)</option>
                             </select>
                         </div>
 
@@ -935,9 +935,9 @@ FORMATTING:
                 }
                 
                 const extractTime = performance.now() - startTime;
-                console.log(`✅ PDF extraction completed in ${(extractTime/1000).toFixed(2)}s`);
-                console.log(`📄 Extracted ${numPages} pages, total text: ${pageTexts.join('').length} characters`);
-                console.log(`📄 First 500 chars:`, pageTexts.join(' ').substring(0, 500));
+                console.log(`PDF extraction completed in ${(extractTime/1000).toFixed(2)}s`);
+                console.log(`Extracted ${numPages} pages, total text: ${pageTexts.join('').length} characters`);
+                console.log(`First 500 chars:`, pageTexts.join(' ').substring(0, 500));
                 
                 return {
                     pages: pageTexts,
@@ -1243,14 +1243,14 @@ FORMATTING:
                         metadata.containsBibliography = true;
                     }
                     // ============================================
-                    // 👇 DÉBUT DU BLOC LOGS À AJOUTER 👇
+                    //   DÉBUT DU BLOC LOGS À AJOUTER 
                     // ============================================
                     
                     // Création d'un groupe pliable dans la console pour ne pas polluer
-                    console.groupCollapsed(`📄 Page ${pageNum} Analysis (${isTwoColumn ? '2 Cols' : '1 Col'})`);
+                    console.groupCollapsed(` Page ${pageNum} Analysis (${isTwoColumn ? '2 Cols' : '1 Col'})`);
                     
                     if (detectedSections.length > 0) {
-                        console.log("📍 Sections détectées :");
+                        console.log("Sections détectées :");
                         // Affiche un tableau propre des titres trouvés sur la page
                         console.table(detectedSections.map(s => ({ 
                             Type: s.type, 
@@ -1299,10 +1299,10 @@ FORMATTING:
                 const chunks = [];
                 const cleanText = text.replace(/\s+/g, ' ').trim();
                 
-                console.log('📄 Text to chunk:', cleanText.length, 'characters');
+                console.log('Text to chunk:', cleanText.length, 'characters');
                 
                 if (cleanText.length < 100) {
-                    console.warn('⚠️ Very short text extracted!');
+                    console.warn('Very short text extracted!');
                     return [{
                         text: cleanText,
                         type: 'CONTENT',
@@ -1411,7 +1411,7 @@ FORMATTING:
                     });
                 }
                 
-                console.log(`✅ Created ${chunks.length} page-aware chunks`);
+                console.log(`Created ${chunks.length} page-aware chunks`);
                 return chunks;
             }
             
@@ -1470,7 +1470,7 @@ FORMATTING:
                     if (end >= cleanText.length) break;
                 }
                 
-                console.log(`✅ Created ${chunks.length} chunks (1 overview + ${chunks.length - 1} content)`);
+                console.log(`Created ${chunks.length} chunks (1 overview + ${chunks.length - 1} content)`);
                 return chunks;
             }
         }
@@ -1494,11 +1494,11 @@ FORMATTING:
                 };
                 
                 await set(firebaseSessionRef, sessionData);
-                console.log('✅ Firebase connected - Session:', state.sessionId);
+                console.log('Firebase connected - Session:', state.sessionId);
                 await incrementGlobalStat('totalSessions', 1);
                 
             } catch (e) {
-                console.warn('⚠️ Firebase unavailable, using localStorage fallback:', e.message);
+                console.warn('Firebase unavailable, using localStorage fallback:', e.message);
                 initLocalStorage();
             }
         }
@@ -1679,7 +1679,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         }
                     }
                 } else {
-                    console.warn('⚠️ Self-eval: Could not parse JSON from:', evalText);
+                    console.warn('Self-eval: Could not parse JSON from:', evalText);
                 }
             } catch (e) {
                 console.error('Self-evaluation error:', e);
@@ -1817,7 +1817,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         async function initQueryClassifier() {
             if (!state.embeddingPipeline || genericTemplateEmbeddings) return;
             
-            console.log('🧠 Initializing query classifier...');
+            console.log('Initializing query classifier...');
             const startTime = performance.now();
             
             genericTemplateEmbeddings = [];
@@ -1826,7 +1826,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 genericTemplateEmbeddings.push(embedding);
             }
             
-            console.log(`✅ Query classifier ready (${GENERIC_TEMPLATES.length} templates, ${(performance.now() - startTime).toFixed(0)}ms)`);
+            console.log(`Query classifier ready (${GENERIC_TEMPLATES.length} templates, ${(performance.now() - startTime).toFixed(0)}ms)`);
         }
         
         async function classifyQuery(query) {
@@ -1976,7 +1976,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             
             let finalResults;
             if (keywordResults.length === 0) {
-                console.log('⚠️ No keyword matches, using semantic search only');
+                console.log(' No keyword matches, using semantic search only');
                 finalResults = semanticResults.slice(0, topK);
             } else {
                 const fusedResults = reciprocalRankFusion(semanticResults, keywordResults, CONFIG.RRF_K || 60);
@@ -1984,7 +1984,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             }
             
             const searchTime = performance.now() - startTime;
-            console.log(`🔍 Hybrid search completed in ${searchTime.toFixed(0)}ms`);
+            console.log(`Hybrid search completed in ${searchTime.toFixed(0)}ms`);
             console.log(`   Semantic: ${semanticResults.length}, Keyword: ${keywordResults.length}, Final: ${finalResults.length}`);
             
             return finalResults;
@@ -1997,7 +1997,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
             const classification = await classifyQuery(userQuery);
             
             if (classification.isGeneric) {
-                console.log(`📋 Generic query detected (${classification.method}, ${(classification.confidence * 100).toFixed(0)}% confidence)`);
+                console.log(`Generic query detected (${classification.method}, ${(classification.confidence * 100).toFixed(0)}% confidence)`);
                 
                 // For generic questions, prioritize overview chunks
                 const overviewChunks = state.vectorStore
@@ -2381,9 +2381,9 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                             progressText.textContent = progress.text || `Loading model...`;
                         }
                     });
-                    console.log(`✅ Loaded ${selectedModel} successfully`);
+                    console.log(` Loaded ${selectedModel} successfully`);
                 } catch (e) {
-                    console.warn(`⚠️ ${selectedModel} failed, falling back...`, e.message);
+                    console.warn(` ${selectedModel} failed, falling back...`, e.message);
                     progressText.textContent = 'Falling back to 1B model...';
                     
                     state.llmEngine = await webllm.CreateMLCEngine(CONFIG.LLM_MODEL_FALLBACK, {
@@ -2406,7 +2406,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 document.getElementById('user-input').disabled = false;
                 document.getElementById('send-btn').disabled = false;
                 
-                addMessage('assistant', `🎉 **${selectedText}** loaded successfully!\n\n📄 **Upload PDFs** to start.\n\n💡 *Tip: For complex queries, try switching to a larger model if your PC allows it.*`);
+                addMessage('assistant', ` **${selectedText}** loaded successfully!\n\n **Upload PDFs** to start.\n\n *Tip: For complex queries, try switching to a larger model if your PC allows it.*`);
                 
             } catch (error) {
                 console.error('Error loading models:', error);
@@ -2417,7 +2417,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 loadBtn.disabled = false;
                 loadBtn.innerHTML = '<i class="fas fa-redo text-xs mr-1"></i>retry';
                 
-                addMessage('assistant', `❌ Error loading models: ${error.message}\n\nPlease make sure you're using a browser with WebGPU support (Chrome 113+ or Edge 113+).`);
+                addMessage('assistant', `Error loading models: ${error.message}\n\nPlease make sure you're using a browser with WebGPU support (Chrome 113+ or Edge 113+).`);
             }
         }
 
@@ -2428,7 +2428,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
         async function processFilesImproved(files) {
             if (files.length === 0) return;
             if (!state.embeddingPipeline) {
-                addMessage('assistant', '⚠️ Please load the models first before uploading documents.');
+                addMessage('assistant', ' Please load the models first before uploading documents.');
                 return;
             }
             if (state.isProcessing) return;
@@ -2481,7 +2481,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     }
                     
                     // Process new file
-                    console.log('📄 Processing new file:', file.name);
+                    console.log('Processing new file:', file.name);
                     
                     // 1. Extract PDF (parallel)
                     const extractor = new ParallelPDFExtractor((progress) => {
@@ -2491,7 +2491,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     const extracted = await extractor.extract(file);
                     
                     if (extracted.fullText.trim().length < 100) {
-                        addMessage('assistant', `⚠️ Could not extract meaningful text from ${file.name}. The PDF might be image-based.`);
+                        addMessage('assistant', ` Could not extract meaningful text from ${file.name}. The PDF might be image-based.`);
                         continue;
                     }
                     
@@ -2539,7 +2539,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     
                     if (priorityChunks.length > 0 && remainingChunks.length > 0) {
                         state.priorityReady = true;
-                        addMessage('assistant', `🚀 **Quick start ready!** Key sections of **${file.name}** are processed.`);
+                        addMessage('assistant', ` **Quick start ready!** Key sections of **${file.name}** are processed.`);
                     }
                     
                     // Remaining chunks
@@ -2589,7 +2589,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                             embeddings: cacheableChunks,
                             metadata
                         });
-                        console.log('✅ Cached for future use');
+                        console.log('Cached for future use');
                     } catch (e) {
                         console.warn('Failed to cache:', e);
                     }
@@ -2602,11 +2602,11 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                     });
                     
                     const totalTime = ((performance.now() - processStart) / 1000).toFixed(1);
-                    addMessage('assistant', `✅ **${file.name}** processed successfully in ${totalTime}s.`);
+                    addMessage('assistant', `**${file.name}** processed successfully in ${totalTime}s.`);
                     
                 } catch (error) {
                     console.error(`Error processing ${file.name}:`, error);
-                    addMessage('assistant', `❌ Error processing ${file.name}: ${error.message}`);
+                    addMessage('assistant', ` Error processing ${file.name}: ${error.message}`);
                 }
             }
             
@@ -2677,7 +2677,7 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                         for (const pattern of patterns) {
                             const match = contextText.match(pattern);
                             if (match && match.index > contextText.length * 0.5) {
-                                console.log("✂️ Bibliographie détectée et coupée.");
+                                console.log(" Bibliographie détectée et coupée.");
                                 contextText = contextText.substring(0, match.index);
                                 break;
                             }
@@ -2871,7 +2871,7 @@ YOUR ANSWER (Based ONLY on Source Text):`;
             } catch (error) {
                 console.error('Chat error:', error);
                 hideTypingIndicator();
-                addMessage('assistant', `❌ Error generating response: ${error.message}`);
+                addMessage('assistant', `Error generating response: ${error.message}`);
             }
             
             state.isGenerating = false;
@@ -2902,7 +2902,7 @@ YOUR ANSWER (Based ONLY on Source Text):`;
             // ... existing init ...
             state.pdfCache = new PDFCacheManager();
             await state.pdfCache.ready;
-            console.log('✅ PDF cache initialized');
+            console.log('PDF cache initialized');
             
             initMetricsStorage().catch(e => console.warn('Metrics init:', e));
             await checkWebGPU();
@@ -3263,9 +3263,9 @@ YOUR ANSWER (Based ONLY on Source Text):`;
                     addMessage('assistant', '🎤 Loading Whisper STT model for voice input...');
                     try {
                         state.whisperPipeline = await state.pipelineFactory('automatic-speech-recognition', CONFIG.WHISPER_MODEL);
-                        addMessage('assistant', '✅ Whisper ready! Click the microphone to start speaking.');
+                        addMessage('assistant', 'Whisper ready! Click the microphone to start speaking.');
                     } catch (error) {
-                        addMessage('assistant', `❌ Failed to load Whisper: ${error.message}`);
+                        addMessage('assistant', `Failed to load Whisper: ${error.message}`);
                         voiceBtn.disabled = false;
                         return;
                     }
@@ -3347,7 +3347,7 @@ YOUR ANSWER (Based ONLY on Source Text):`;
                             console.error('Transcription error:', error);
                             setVoiceState('hidden');
                             state.isTranscribing = false;
-                            addMessage('assistant', `❌ Transcription error: ${error.message}`);
+                            addMessage('assistant', `Transcription error: ${error.message}`);
                         }
                     };
                     
@@ -3362,7 +3362,7 @@ YOUR ANSWER (Based ONLY on Source Text):`;
                     
                 } catch (error) {
                     console.error('Microphone error:', error);
-                    addMessage('assistant', '❌ Could not access microphone. Please check permissions.');
+                    addMessage('assistant', 'Could not access microphone. Please check permissions.');
                 }
             });
             
