@@ -7,6 +7,12 @@ Hi everyone, here's my not very local... local RAG system for reviewing scientif
 ![Interface Screenshot](/Screenshots/Interface.png)
 ![Dashboard Screenshot](/Screenshots/Dashboard.png)
 
+## First words : How to improve 
+
+1 - This RAG could be improved by implementing a more reliable way to parse PDFs (finding title, subtitle, and section delimitation). As it is, the algorithm tries to find the title and to understand the paper's format (one column, two columns, etc.) using a trivial "is there a space in the center". Using a more advanced Python PDF parsing library could be useful, but I really wanted to deploy on GitHub Pages, soooooooooo we are stuck with PDF.js (didn't find any other reliable lib which is quick enough to be used in this context).
+
+2- I use a system which re-rank the "Summary" chunks if ask "Summarize this text" or equivalent. The agorithme of this need to be improved as rightnow he always re rank it on the top.
+
 
 ## Features
 Here are all the cool features we implemented in this project. (Take the time to read them to understand better how everything works)
@@ -33,19 +39,19 @@ Here are all the cool features we implemented in this project. (Take the time to
 - **Voice Activity Detection (VAD):** Auto-stops recording when you stop talking
 - **Text-to-Speech:** Optional TTS for responses (toggle in settings)
 
-### 📊 Analytics Dashboard
+### Analytics Dashboard
 - **Real-time Metrics:** TTFT, throughput, retrieval time per query
 - **Quality Scores:** Context utilization, grounding, hallucination detection
 - **Multi-user Tracking:** Anonymous session tracking across users
 - **LLM Analysis:** Dashboard has its own local LLM to summarize performance trends (yeah, I know that is over-engineered but quite cool!)
 
-### 🎨 UI/UX
+### UI/UX
 - **Retro Terminal Aesthetic:** Dark mode, monospace fonts, amber accents
 - **Custom Modals:** Styled popups instead of native browser alerts
 - **Responsive Design:** Works on desktop and tablet 
 - **Keyboard Shortcuts:** Enter to send, Shift+Enter for newline
 
-### 🔒 Privacy Controls
+### Privacy Controls
 - **Fully Local Option:** Remove Firebase config for zero cloud dependency
 - **No Document Upload:** PDFs never leave your browser
 - **Incognito Friendly:** All processing in-browser via WebGPU/WASM
