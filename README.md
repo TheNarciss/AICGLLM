@@ -1,275 +1,159 @@
-# 📚 Local LLM Literature Reviewer
+# Literature Reviewer
 
-> A privacy-first, fully browser-based AI research assistant powered by WebLLM and Transformers.js. No cloud, no data sharing - everything runs locally on your device.
+Hi everyone, here's my not very local... local RAG system for reviewing scientific papers.
 
-![Interface Preview](preview.png)
+**Why isn't it fully local ?** I found it useful to add a dashboard that tracks various metrics about the RAG performance. If you want something fully private with no cloud, just go into the dashboard code and delete the Firebase API key (you also can create your own Firebase project and copy-paste your API key...)
 
-## 🎯 Project Overview
+![Interface Screenshot](/Screenshots/Interface.png)
+![Dashboard Screenshot](/Screenshots/Dashboard.png)
 
-This application enables researchers to analyze multiple PDF research papers simultaneously using a local Large Language Model. The RAG (Retrieval-Augmented Generation) pipeline runs entirely in the browser, ensuring complete privacy for sensitive research documents.
 
-### ✨ Key Features
+## Features
+Here are all the cool features we implemented in this project. (Take the time to read them to understand better how everything works)
 
-| Feature | Description |
-|---------|-------------|
-| 🔒 **100% Local** | All processing happens in your browser - no data sent to servers |
-| 📄 **Multi-PDF Support** | Upload and analyze multiple research papers simultaneously |
-| 🔍 **Hybrid Search** | Combines semantic embeddings + keyword matching (RRF) for best results |
-| 📊 **Analytics Dashboard** | Track performance metrics, grounding scores, and user feedback |
-| 🎤 **Voice Interface** | Speech-to-Text (Whisper) and Text-to-Speech support |
-| ⚡ **Smart Caching** | IndexedDB caching for instant re-uploads (7-day expiry) |
-| 📑 **Page Citations** | Inline citations with page numbers `[1] [Page 5]` |
+### Quick Start & Lazy Loading
+- **Priority Embedding:** First 20% of document (abstract, intro) embedded immediately
+- **Background Processing:** Remaining chunks embedded progressively while you read
+- **Model Fallback:** Tries 3B model first, auto-fallback to 1B if GPU can't handle it
+- **PDF Caching:** IndexedDB cache for previously loaded PDFs
 
-## 🛠️ Tech Stack
+### Smart Retrieval
+- **Hybrid Search:** Combines semantic (cosine similarity) + keyword (BM25) with RRF fusion
+- **Query Classification:** Detects generic vs specific questions, adjusts retrieval strategy
+- **Chunk Type Boosting:** Abstracts and introductions get priority for overview questions
 
-| Technology | Purpose | Version |
-|------------|---------|---------|
-| **WebLLM** | In-browser LLM inference via WebGPU | Latest |
-| **Transformers.js** | Embeddings (all-MiniLM-L6-v2) + Whisper STT | 2.17.1 |
-| **PDF.js** | PDF text extraction with parallel processing | 3.11.174 |
-| **Tailwind CSS** | Responsive UI styling | CDN |
-| **Firebase** | Analytics persistence (optional) | 11.7.0 |
-| **IndexedDB** | Client-side document caching | Native |
-| **Vanilla JavaScript** | No framework dependencies | ES2020 |
+### Chat Interface
+- **Clickable Citations:** Click `[1]`, `[2]` in responses to see the exact source chunk
+- **Source Popup:** Shows file, page, chunk type, similarity score, and full text
+- **Markdown Rendering:** Bold, bullets, headers rendered in real-time
+- **Chat History:** Multi-turn conversations with context
 
-## 🚀 Quick Start
+### Voice Features
+- **Voice Input:** Hold mic button or use Whisper for accurate transcription
+- **Voice Activity Detection (VAD):** Auto-stops recording when you stop talking
+- **Text-to-Speech:** Optional TTS for responses (toggle in settings)
 
-### Prerequisites
+### 📊 Analytics Dashboard
+- **Real-time Metrics:** TTFT, throughput, retrieval time per query
+- **Quality Scores:** Context utilization, grounding, hallucination detection
+- **Multi-user Tracking:** Anonymous session tracking across users
+- **LLM Analysis:** Dashboard has its own local LLM to summarize performance trends (yeah, I know that is over-engineered but quite cool!)
 
-- **Browser**: Chrome 113+ or Edge 113+ with WebGPU support
-- **RAM**: 8GB minimum (16GB recommended for 3B model)
-- **GPU**: WebGPU-compatible graphics card
+### 🎨 UI/UX
+- **Retro Terminal Aesthetic:** Dark mode, monospace fonts, amber accents
+- **Custom Modals:** Styled popups instead of native browser alerts
+- **Responsive Design:** Works on desktop and tablet 
+- **Keyboard Shortcuts:** Enter to send, Shift+Enter for newline
 
-### Local Development
+### 🔒 Privacy Controls
+- **Fully Local Option:** Remove Firebase config for zero cloud dependency
+- **No Document Upload:** PDFs never leave your browser
+- **Incognito Friendly:** All processing in-browser via WebGPU/WASM
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/TheNarciss/AICGLLM.git
-   cd AICGLLM
-   ```
+## Tech Stack
 
-2. **Start the local server** (required for COOP/COEP headers)
-   ```bash
-   python server.py
-   ```
-   
-   Or with Python's built-in server:
-   ```bash
-   python -m http.server 8000
-   ```
+| Component | Technology |
+|-----------|------------|
+| LLM | [WebLLM](https://github.com/mlc-ai/web-llm) (Llama 3.2 3B/1B) |
+| Embeddings | [Transformers.js](https://huggingface.co/docs/transformers.js) (BGE-small-en-v1.5) |
+| PDF Parsing | PDF.js |
+| Speech | Web Speech API + Transformers.js Whisper |
+| Styling | Tailwind CSS |
+| Analytics | Firebase Realtime Database |
+| Framework | Vanilla JS (no React/Vue) |
 
-3. **Open in browser**
-   ```
-   http://localhost:8000
-   ```
 
-4. **Load models** and start analyzing papers!
 
-### GitHub Pages Deployment
+## How It Works
 
-Live demo: **https://yourusername.github.io/AICGLLM/**
-
-> ⚠️ Note: For full WebGPU functionality, we recommend Cloudflare Pages or Netlify with the provided `_headers` file for COOP/COEP support.
-
-## 📖 Usage Guide
-
-### Step 1: Load Models
-Click **"Load Models"** to initialize:
-- 📦 Embedding model (~30MB) - for semantic search
-- 🤖 LLM model (3B: ~1.5GB, 1B fallback: ~500MB) - for generation
-- 🎤 Whisper tiny (~40MB) - for voice input
-
-### Step 2: Upload Research Papers
-- Drag & drop PDF files onto the upload zone
-- Multiple files supported simultaneously
-- Progress shows: extraction → chunking → embedding phases
-- **Cached documents load instantly** on re-upload (⚡ <1 second)
-
-### Step 3: Ask Questions
-Example queries:
-- *"What are the main themes across these papers?"*
-- *"Compare the methodologies used"*
-- *"Generate a literature review"*
-- *"What does Paper A say about [topic] vs Paper B?"*
-
-### Step 4: Review with Citations
-Responses include:
-- Inline citations `[1]`, `[2]` referencing source documents
-- Page numbers: `[Page 5-7]`
-- Retrieved context panel showing used chunks with similarity scores
-
-## 🧠 Architecture
-
-### RAG Pipeline Flow
+### RAG Pipeline
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    PDF Upload                                │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│     PDF.js Parallel Extraction (8 pages/batch)              │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│     Page-Aware Chunking (800 chars, 100 overlap)            │
-│     + Chapter/Section Detection                              │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│      Transformers.js Embedding (all-MiniLM-L6-v2)           │
-│      Priority: Overview chunks first for quick start         │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│         Vector Store + IndexedDB Cache (7 days)             │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-         User Query    │
-              │        │
-              ▼        ▼
-┌─────────────────────────────────────────────────────────────┐
-│     Query Classification (Embedding-based)                   │
-│     Generic → Overview chunks | Specific → Hybrid Search     │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│             Hybrid Search (Semantic + Keyword)               │
-│             Reciprocal Rank Fusion (RRF, k=60)              │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│         Context Truncation (~3000 tokens max)               │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│    System Prompt + Context + Chat History → WebLLM          │
-│    (Llama-3.2-3B-Instruct with 1B fallback)                 │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Response with Inline Citations [1][2]          │
-└─────────────────────────────────────────────────────────────┘
+PDF Upload → Chunking → Embedding → Vector Store
+                                        ↓
+User Query → Embed Query → Hybrid Search → Top-K Chunks → LLM → Response
 ```
 
-### Cosine Similarity Formula
+### Chunking
+- **Size:** 800 chars, 100 overlap
+- **Priority:** First 20% embedded immediately (abstracts, intros)
 
-$$\text{similarity} = \frac{\sum (A_i \times B_i)}{\sqrt{\sum A_i^2} \times \sqrt{\sum B_i^2}}$$
-
-### Hybrid Search: Reciprocal Rank Fusion
-
-```javascript
-// Combines semantic and keyword search results
-score(doc) = Σ 1/(k + rank_i)  // k=60, across all rankings
-```
-
-## 📊 Analytics Dashboard
-
-Access via the **"📊 Dashboard"** button to view:
-
-### Tracked Metrics
-
-| Metric | Description | Good | Warning |
-|--------|-------------|------|---------|
-| Context Utilization | % of response words from context | >50% | <30% |
-| Answer Grounding | % of sentences with source overlap | >60% | <40% |
-| Hallucination Score | % of unsupported factual claims | <20% | >40% |
-| TTFT | Time to First Token | <5s | >15s |
-| Throughput | Tokens per second | >10 | <5 |
-
-### Self-Evaluation (LLM-based)
-
-Each response is automatically rated 1-5 on:
-- **Faithfulness**: Uses only context information
-- **Relevance**: Answers the question asked  
-- **Coherence**: Well-structured response
-
-## 🔧 Configuration
-
-### Adjustable Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `CHUNK_SIZE` | 800 | Characters per chunk |
-| `CHUNK_OVERLAP` | 100 | Overlap between chunks |
-| `TOP_K` | 10 | Chunks retrieved per query |
-| `Temperature` | 0.3 | LLM creativity (lower = more factual) |
-| `LLM_MODEL` | Llama-3.2-3B | Primary model (auto-fallback to 1B) |
-
-### System Prompt
-
-Customizable via System Controls panel. Default enforces:
-- ✅ Inline citations `[1]`, `[2]`
-- ✅ Literature review structure (Intro, Themes, Methods, Conclusion)
-- ✅ Anti-hallucination rules
-- ✅ Quote requirements for factual claims
-
-## 🎤 Voice Features (Bonus)
-
-### Speech-to-Text (STT)
-- Model: `Xenova/whisper-tiny`
-- Click 🎤 microphone icon to record
-- Automatic transcription to chat input
-
-### Text-to-Speech (TTS)
-- Uses browser's native `SpeechSynthesis` API
-- Auto-reads responses under 800 characters
-- Toggle on/off in System Controls
-
-## 📁 Project Structure
+### Hybrid Search (RRF Fusion)
 
 ```
-AICGLLM/
-├── index.html              # Main SPA application
-├── dashboard.html          # Analytics dashboard
-├── analytics.js            # Advanced metrics computation
-├── analytics.worker.js     # Off-thread analytics (Web Worker)
-├── embeddings.worker.js    # Off-thread embeddings (Web Worker)
-├── server.py               # Local dev server with CORS headers
-├── _headers                # Cloudflare/Netlify COOP/COEP config
-├── 404.html                # SPA redirect for GitHub Pages
-└── README.md               # Documentation
+RRF_score(chunk) = Σ 1/(k + rank_i)
+```
+- `k = 60`
+- Combines semantic similarity + keyword BM25
+
+### Query Classification
+Cosine similarity against template embeddings:
+- **Generic** (summaries) → boost intro/abstract chunks
+- **Specific** (detailed) → standard retrieval
+
+
+
+## Metrics
+
+### Performance
+| Metric | Description |
+|--------|-------------|
+| TTFT | Time to First Token (ms) |
+| Throughput | `tokens / time × 1000` (tok/s) |
+
+### Quality
+| Metric | Formula |
+|--------|---------|
+| Context Utilization | `matched_tokens / response_tokens` |
+| Answer Grounding | `word_overlap × 0.6 + bigram_overlap × 0.4` |
+| Hallucination Score | Sentences with low context overlap |
+| Distinct-1/2 | Lexical diversity (unique n-grams ratio) |
+
+
+
+## Local Setup
+
+**Requirements:**
+- Browser with WebGPU (Chrome/Edge 113+)
+- ~2.5GB VRAM (3B) or ~1.2GB (1B fallback)
+
+**Run:**
 ```
 
-## ⚠️ Troubleshooting
+VS Code Live Server extension 
+( you can do a python server if you want but god liveserver... we like it ! )
 
-| Problem | Solution |
-|---------|----------|
-| "WebGPU not supported" | Update Chrome/Edge to version 113+ |
-| Models fail to load | Check internet connection, clear cache, retry |
-| "Context window exceeded" | Automatic truncation handles this |
-| PDF extraction empty | PDF may be image-based (OCR not supported) |
-| Slow performance | Close other GPU-intensive tabs |
-| SharedArrayBuffer error | Use `python server.py` for proper COOP/COEP headers |
+```
 
-## 🤝 Contributing
+**Go fully private:** Delete the Firebase config in `index.html` and `dashboard.html`.
 
-Contributions welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
 
-## 📄 License
 
-MIT License - free for personal and commercial use.
+## Files
 
-## 🙏 Acknowledgments
+```
+├── index.html           # Main app
+├── dashboard.html       # Analytics
+├── analytics.js         # Metrics tracking
+├── analytics_worker.js  # Background computation
+├── embeddings_worker.js # Background embeddings
+└── 404.html             # SPA redirect
+```
 
-- [WebLLM](https://webllm.mlc.ai/) by MLC team - Browser LLM inference
-- [Transformers.js](https://huggingface.co/docs/transformers.js/) by Hugging Face - Web ML
-- [PDF.js](https://mozilla.github.io/pdf.js/) by Mozilla - PDF parsing
-- [Tailwind CSS](https://tailwindcss.com/) - Styling
 
----
 
-**Made with ❤️ for privacy-conscious researchers**
+## Privacy
 
-*All processing happens locally. Your research stays yours.*
+**Local:** PDFs, LLM, embeddings — all in-browser, nothing uploaded.
+
+**Cloud (optional):** Anonymous metrics only. Remove Firebase to disable.
+
+
+
+## Okay and last words : 
+
+1 - This RAG could be improved by implementing a more reliable way to parse PDFs (finding title, subtitle, and section delimitation). As it is, the algorithm tries to find the title and to understand the paper's format (one column, two columns, etc.) using a trivial "is there a space in the center". Using a more advanced Python PDF parsing library could be useful, but I really wanted to deploy on GitHub Pages, soooooooooo we are stuck with PDF.js (didn't find any other reliable lib which is quick enough to be used in this context).
+
+2- I use a system which re-rank the "Summary" chunks if ask "Summarize this text" or equivalent. The agorithme of this need to be improved as rightnow he always re rank it on the top.
+
+## Clement Gardair 
