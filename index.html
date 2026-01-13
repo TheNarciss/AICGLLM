@@ -448,11 +448,11 @@
                         <div>
                             <label class="text-xs text-terminal-muted mb-1 block flex justify-between uppercase tracking-wider">
                                 <span>AI Model</span>
-                                <span id="vram-estimate" class="text-terminal-amber">~1.2GB VRAM</span>
+                                <span id="vram-estimate" class="text-terminal-amber">~2.4GB VRAM</span>
                             </label>
                             <select id="model-selector" class="w-full p-2 mt-1">
-                                <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC" data-vram="~2.4GB">◆ Llama 3.2 3B (best option)</option>
-                                <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC" data-vram="~1.2GB" selected>⚡ Llama 3.2 1B (fastest but not great) </option>
+                                <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC" data-vram="~2.4GB" selected>◆ Llama 3.2 3B (Balanced)</option>
+                                <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC" data-vram="~1.2GB">⚡ Llama 3.2 1B (Fallback)</option>
                                 <option value="Llama-3.1-8B-Instruct-q4f32_1-MLC" data-vram="~6.0GB">● Llama 3.1 8B (Cool if powerful pc)</option>
                                 <option value="gemma-2-2b-it-q4f16_1-MLC" data-vram="~1.8GB">◇ Gemma 2 2B (Never tried it ah ah!)</option>
                                 <option value="Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC" data-vram="~5.5GB">○ Hermes 2 Pro 8B (does this one really exists ?)</option>
@@ -488,13 +488,12 @@
                         <div>
                             <label class="text-xs text-terminal-muted mb-1 block uppercase tracking-wider">System Prompt</label>
                             <textarea id="system-prompt" rows="6" class="w-full p-2 mt-1 resize-none">ROLE: You are a strict extraction engine. You are NOT a creative writer.
-ROLE: You are a strict extraction engine. You are NOT a creative writer.
 TASK: Summarize the provided text below based strictly on the user's question.
 
 ABSOLUTE RULES (Follow or fail):
 1. USE ONLY THE TEXT BELOW. Do not use your own knowledge.
 2. CITATIONS ARE MANDATORY. Every sentence must end with [1], [2], etc.
-3. IF THE ANSWER IS NOT IN THE TEXT: Write exactly "Insufficient information in the documents."
+3. IF THE ANSWER IS NOT IN THE TEXT: Write exactly "Insufficient information."
 4. NO FAKE REFERENCES. Do not invent authors or dates.
 5. KEEP IT SHORT. The model is small, be concise.
 
@@ -2692,19 +2691,10 @@ JSON format: {"faithfulness": X, "relevance": X, "coherence": X}`;
                 }
                 
                 // --- STRICT PROMPT ENGINEERING FOR SMALL MODELS ---
-                let fullSystemPrompt = `ROLE: You are a strict extraction engine. You are NOT a creative writer.
-TASK: Summarize the provided text below based strictly on the user's question.
-
-ABSOLUTE RULES (Follow or fail):
-1. USE ONLY THE TEXT BELOW. Do not use your own knowledge.
-2. CITATIONS ARE MANDATORY. Every sentence must end with [1], [2], etc.
-3. IF THE ANSWER IS NOT IN THE TEXT: Write exactly "Insufficient information."
-4. NO FAKE REFERENCES. Do not invent authors or dates.
-5. KEEP IT SHORT. The model is small, be concise.
-
-FORMATTING:
-- Use bullet points for clarity.
-- Bold key terms.
+                // Read custom system prompt from textarea
+                const customPrompt = document.getElementById('system-prompt').value.trim();
+                
+                let fullSystemPrompt = customPrompt + `
 
 === SOURCE TEXT START ===
 ${contextText}
@@ -2740,10 +2730,10 @@ YOUR ANSWER (Based ONLY on Source Text):`;
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'flex gap-3';
                 messageDiv.innerHTML = `
-                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
-                        <i class="fas fa-robot text-white text-sm"></i>
+                    <div class="w-7 h-7 bg-terminal-gray border border-terminal-border flex items-center justify-center flex-shrink-0">
+                        <span class="text-terminal-amber text-xs font-bold">//</span>
                     </div>
-                    <div class="bg-slate-700/50 rounded-lg rounded-tl-none p-4 max-w-2xl prose text-slate-200">
+                    <div class="msg-assistant p-4 max-w-2xl prose text-sm">
                         <span id="${messageId}"></span>
                     </div>
                 `;
@@ -2771,13 +2761,13 @@ YOUR ANSWER (Based ONLY on Source Text):`;
                 const uniqueSources = relevantChunks.length > 0 ? [...new Set(relevantChunks.map(s => s.source))] : [];
                 const sourcesHtml = uniqueSources.length > 0 ? `
                     <div class="mt-3 pt-3 border-t border-slate-600">
-                        <div class="text-xs text-slate-400 mb-2">
-                            <i class="fas fa-quote-left mr-1"></i>Sources used:
+                        <div class="text-xs text-terminal-muted mb-2 uppercase tracking-wider">
+                            <i class="fas fa-quote-left mr-1 text-terminal-amber"></i>Sources:
                         </div>
                         <div class="flex flex-wrap gap-2">
                             ${uniqueSources.map(s => `
-                                <span class="px-2 py-1 bg-slate-600/50 rounded text-xs text-slate-300">
-                                    <i class="fas fa-file-pdf text-red-400 mr-1"></i>${s}
+                                <span class="px-2 py-1 bg-terminal-black border border-terminal-border text-xs text-terminal-text">
+                                    <i class="fas fa-file-pdf text-terminal-red mr-1"></i>${s}
                                 </span>
                             `).join('')}
                         </div>
@@ -2785,17 +2775,17 @@ YOUR ANSWER (Based ONLY on Source Text):`;
                 ` : '';
                 
                 const feedbackHtml = `
-                    <div class="mt-3 pt-3 border-t border-slate-600 flex items-center justify-between">
-                        <div class="text-xs text-slate-500">
+                    <div class="mt-3 pt-3 border-t border-terminal-border flex items-center justify-between">
+                        <div class="text-xs text-terminal-muted">
                             <i class="fas fa-tachometer-alt mr-1"></i>
                             TTFT: ${ttftMs}ms | ${tokensPerSecond} tok/s | Total: ${(totalTimeMs/1000).toFixed(1)}s
                         </div>
                         <div class="flex items-center gap-2" id="feedback-${queryId}">
-                            <span class="text-xs text-slate-500">Helpful?</span>
-                            <button onclick="window.recordFeedback('${queryId}', 'up')" class="p-1.5 rounded hover:bg-green-600/30 text-slate-400 hover:text-green-400 transition-colors" title="Yes">
+                            <span class="text-xs text-terminal-muted">Helpful?</span>
+                            <button onclick="window.recordFeedback('${queryId}', 'up')" class="p-1.5 text-terminal-muted hover:text-terminal-green transition-colors" title="Yes">
                                 <i class="fas fa-thumbs-up"></i>
                             </button>
-                            <button onclick="window.recordFeedback('${queryId}', 'down')" class="p-1.5 rounded hover:bg-red-600/30 text-slate-400 hover:text-red-400 transition-colors" title="No">
+                            <button onclick="window.recordFeedback('${queryId}', 'down')" class="p-1.5 text-terminal-muted hover:text-terminal-red transition-colors" title="No">
                                 <i class="fas fa-thumbs-down"></i>
                             </button>
                         </div>
@@ -2946,11 +2936,11 @@ YOUR ANSWER (Based ONLY on Source Text):`;
             const fileInput = document.getElementById('file-input');
             
             dropZone.addEventListener('click', () => fileInput.click());
-            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-blue-500', 'bg-slate-700/50'); });
-            dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('border-blue-500', 'bg-slate-700/50'); });
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-terminal-amber', 'bg-terminal-gray'); });
+            dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('border-terminal-amber', 'bg-terminal-gray'); });
             dropZone.addEventListener('drop', async (e) => {
                 e.preventDefault();
-                dropZone.classList.remove('border-blue-500', 'bg-slate-700/50');
+                dropZone.classList.remove('border-terminal-amber', 'bg-terminal-gray');
                 const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
                 await processFilesImproved(files);
             });
@@ -3016,13 +3006,11 @@ YOUR ANSWER (Based ONLY on Source Text):`;
                 CONFIG.TTS_ENABLED = !CONFIG.TTS_ENABLED;
                 const toggleKnob = ttsToggle.querySelector('span');
                 if (CONFIG.TTS_ENABLED) {
-                    ttsToggle.classList.remove('bg-slate-600');
-                    ttsToggle.classList.add('bg-green-600');
-                    toggleKnob.classList.add('translate-x-6');
+                    ttsToggle.classList.add('active');
+                    toggleKnob.style.transform = 'translateX(18px)';
                 } else {
-                    ttsToggle.classList.remove('bg-green-600');
-                    ttsToggle.classList.add('bg-slate-600');
-                    toggleKnob.classList.remove('translate-x-6');
+                    ttsToggle.classList.remove('active');
+                    toggleKnob.style.transform = 'translateX(0)';
                     window.speechSynthesis.cancel();
                 }
             });
