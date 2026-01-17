@@ -698,10 +698,17 @@ EXAMPLE FORMAT:
         // IMPORTS
         // ============================================
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-app.js";
+        
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-auth.js";
+
         import { getDatabase, ref, push, set, update, onValue, get } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-database.js";
         
         // Import advanced analytics library
         import { AdvancedAnalytics } from './analytics.js';
+
+        
+
+
         
         // ============================================
         // CONFIGURATION & STATE
@@ -844,9 +851,18 @@ EXAMPLE FORMAT:
         
         const firebaseApp = initializeApp(firebaseConfig);
         const database = getDatabase(firebaseApp);
+        const auth = getAuth();
+
         
         let firebaseSessionRef = null;
-        
+
+        signInAnonymously(auth)
+            .then(() => {
+                console.log("Auth anonyme OK");
+            })
+            .catch((error) => {
+                console.error(error);
+            });
         // ============================================
         // INDEXEDDB PDF CACHE MANAGER
         // ============================================

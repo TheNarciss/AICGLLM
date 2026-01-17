@@ -582,6 +582,8 @@
         // FIREBASE CONFIGURATION
         // ============================================
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-app.js";
+        import { getAuth, signInAnonymously}from "https://www.gstatic.com/firebasejs/11.7.0/firebase-auth.js";
+
         import { getDatabase, ref, onValue, get, remove } from "https://www.gstatic.com/firebasejs/11.7.0/firebase-database.js";
         
         const firebaseConfig = {
@@ -594,11 +596,17 @@
             appId: "1:753346448022:web:e98bf4234a15047107d0b7",
             measurementId: "G-XSH19F0QVY"
         };
-        
+
         // Initialize Firebase
         const firebaseApp = initializeApp(firebaseConfig);
         const database = getDatabase(firebaseApp);
-        
+
+        const auth = getAuth(firebaseApp);
+        signInAnonymously(auth)
+            .then(() => console.log("Auth anonyme OK (dashboard)"))
+            .catch(console.error);
+
+
         // ============================================
         // CONFIGURATION
         // ============================================
